@@ -617,8 +617,8 @@ namespace Gayme
                      }*/
                     for (int e = 0; e < enemy.Count; e++)
                     {
-                        Procesed_Prompt = "Labels:\nAction(reasoning,name,target)\n" +
-                                              $"Task: You are {enemy[e]}. Your task is to determine which action to take depending on the situation at hand, try to work for the good of the team and perdict what you allies and enemies will do. Use reasoning to thikn out your options and decide on the best course of action. Use name for the name of the action you want to take. Use target to type the name of the entity you want to inflict the action on. If you want to inflich an action on yourself, return target as \"player\". In that case, if the action you want to choose is ambigous between multiple actions, choose the one that has \"Used on self\" as True. avaliable actions: ";
+                        Procesed_Prompt = "Labels:\nReasoning(advantages,disadvantages,course_of_action)\nAction(name,target)\v" +
+                                              $"Task: You are {enemy[e]}. Your task is to determine which action to take depending on the situation at hand, try to work for the good of the team and perdict what you allies and enemies will do. You should use the descriptions of actions and compare them to your statistics to see what would be the most beneficial. Use the label reasoning and its components to think out your options and decide on the best course of action, comparing the advantages of your stats to your disatvantages. Use name for the name of the action you want to take. Use target to type the name of the entity you want to inflict the action on. If you want to inflich an action on yourself, return target as \"player\". In that case, if the action you want to choose is ambigous between multiple actions, choose the one that has \"Used on self\" as True. avaliable actions: ";
                         foreach (Operations d in operations.Values)
                         {
                             Procesed_Prompt += $"action name: {d.Name}, action description: {d.Description}. Used on friendly ?:{d.Ally}. Used on self?:{d.Self}";
@@ -868,7 +868,7 @@ namespace Gayme
                 option = Console.ReadLine()!.ToLower();
                 if (option == "start") { break; }
                 else if (option == "exit") { Environment.Exit(0); }
-                else if (option == "options") { Menu_Options(); break; }
+                else if (option == "options") { Menu_Options();}
                 else { Console.WriteLine("Wrong"); }
             }
             return option;
@@ -884,7 +884,7 @@ namespace Gayme
                 option = Console.ReadLine()!.ToLower();
                 if (option == "resume") { break; }
                 else if (option == "exit") { Environment.Exit(0); }
-                else if (option == "options") { Menu_Options(); break; }
+                else if (option == "options") { Menu_Options();}
                 else { Console.WriteLine("Wrong"); }
             }
             return option;
@@ -982,7 +982,7 @@ namespace Gayme
             var content = new
             {
                 prompt = prompt,
-                max_new_tokens = 200,
+                max_new_tokens = 400,
                 auto_max_new_tokens = false,
                 preset = "None",
                 do_sample = true,
@@ -1081,7 +1081,7 @@ namespace Gayme
             var gptAgent = new OpenAI_GPT();
         v:
             string Prompt = $"{prompt}";
-            var Response = await gptAgent.SendPrompt(Prompt, gpt, 0.7, $"{system}", 100);
+            var Response = await gptAgent.SendPrompt(Prompt, gpt, 0.7, $"{system}", 200);
             Console.WriteLine($"Trying to parse gpt's response...");
             if (Response == null) { Console.WriteLine($"Didn't recieve a response from GPT, server is probably overloaded, try again ? y\\n"); string asl = Console.ReadLine()!; if (asl == "y") { goto v; } return "no command gpt response"; }
             JObject JsonResponse = JObject.Parse(Response);
