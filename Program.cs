@@ -1,27 +1,13 @@
 ﻿using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Newtonsoft.Json;
-using System.Net.WebSockets;
 using System.Text;
 using Newtonsoft.Json.Linq;
 using System.Reflection;
-using System.Dynamic;
 using System.Linq.Dynamic.Core;
-using System.Linq.Dynamic.Core.CustomTypeProviders;
-using System.Linq.Expressions;
 using System.Text.RegularExpressions;
-using System.Text.Json.Nodes;
-using System.Reflection;
 using System.Data;
-using NCalc;
-using Microsoft.CodeAnalysis.CSharp.Scripting;
-using Microsoft.CodeAnalysis.Scripting;
-using System.Reflection.Emit;
-using System.Xml.Linq;
 using Microsoft.CodeAnalysis;
-using System.Numerics;
-using System;
-using System.Runtime.CompilerServices;
 
 namespace Gayme
 {
