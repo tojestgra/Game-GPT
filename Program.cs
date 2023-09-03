@@ -18,6 +18,10 @@ using Microsoft.CodeAnalysis.CSharp.Scripting;
 using Microsoft.CodeAnalysis.Scripting;
 using System.Reflection.Emit;
 using System.Xml.Linq;
+using Microsoft.CodeAnalysis;
+using System.Numerics;
+using System;
+using System.Runtime.CompilerServices;
 
 namespace Gayme
 {
@@ -114,9 +118,9 @@ namespace Gayme
             if (param == "combat")
             {
                 combat = new Combat();
-                Character player = new Character { Name = "Moo", Health = 500};
-                Character enemy = new Character { Name = "Glue", Attack = 50, Defence = 1 };
-                Character smone = new Character { Name = "Jack", Attack = 3, Defence = 30 };
+                Character player = new Character { Name = "Moo", Health = 20};
+                Character enemy = new Character { Name = "Glue", Attack = 4, Defence = 1 };
+                Character smone = new Character { Name = "Jack", Attack = 1, Defence = 3 };
                 List<Character> players = new List<Character>();
                 List<Character> enemies = new List<Character>();
                 players.Add(player);
@@ -442,6 +446,17 @@ namespace Gayme
     }
     public class Combat : Game
     {
+        string Log = "Fight started";
+        string Current_Log = "";
+        string Player_action;
+        string Turn_communicate = "";
+        string Mid_round = "d";
+        string Prompt;
+        string Procesed_Prompt;
+        string System = "Construct a structured summarization of the given situation. The inputs include: labels defining the components of the outcome you're assessing, a task which provides a specific scenario; and an output string related to these elements. Analyze the scenario, evaluate the outcome of the situation, and deliver your results in structured JSON format according to the labels provided. Assign values to each label based on your analysis. You can only use a label and a parameter Once. The template for the input and your output\n{\r\n All bracketed text is example text, that will be different in a real scenarion \"instruction given to you\": \"Labels:\n[Label1](property1,property2)\n...\n[LabelN](property1,...,propertyN)\nTask: (task) :\n\"(String related to task)\"\",\r\n  expected output starts here: [{\"Object\":\"[Label1 (name of the label given to you in Labels)]\",\"[property1]\":\"[value1]\",\"[property2]\":\"[value2]\"},...,{\"Object\":\"[LabelN]\",\"[property1]\":\"[value1]\",...,\"[propertyN]\":\"[valueN]\"}]";
+        JArray Response;
+        Operations oper = new Operations();
+        int turn = 0;
         public async Task Fight(List<Character> player, List<Character> enemy, Dictionary<string, Operations> operations)
         {
             string enemy_names = "";
@@ -451,243 +466,13 @@ namespace Gayme
             }
             enemy_names += enemy.Last().Name;
             Console.WriteLine($"You were attacked by {enemy_names} !");
-            string Log = "Fight started";
-            string Player_action;
-            string Turn_communicate = "";
-            string Mid_round = "d";
-            string Prompt;
-            string Procesed_Prompt;
-            string System = "Construct a structured summarization of the given situation. The inputs include: labels defining the components of the outcome you're assessing, a task which provides a specific scenario; and an output string related to these elements. Analyze the scenario, evaluate the outcome of the situation, and deliver your results in structured JSON format according to the labels provided. Assign values to each label based on your analysis. You can only use a label and a parameter Once. The template for the input and your output" +
-                "\n{\r\n All bracketed text is example text, that will be different in a real scenarion \"instruction given to you\": \"Labels:\n[Label1](property1,property2)\n...\n[LabelN](property1,...,propertyN)\nTask: (task) :\n\"(String related to task)\"\",\r\n  expected output starts here: [{\"Object\":\"[Label1 (name of the label given to you in Labels)]\",\"[property1]\":\"[value1]\",\"[property2]\":\"[value2]\"},...,{\"Object\":\"[LabelN]\",\"[property1]\":\"[value1]\",...,\"[propertyN]\":\"[valueN]\"}]";
-            JArray Response;
-            Operations oper = new Operations();
             while (true)
             {
-                Console.WriteLine(Turn_communicate);
-                Console.WriteLine(Log);
-                while (true)
-                {
-                    Console.WriteLine("What do you want to do ?\n type Help for help");
-                    Player_action = Console.ReadLine().ToLower();
-                    if (Player_action.ToLower() == "local")
-                    {
-                        ai.GPT = "local";
-                    }
-                    else if (Player_action.ToLower() == "help")
-                    {
-                        Console.WriteLine("Type:\nAct - Action that will be given to the ai for processing, can be anything you wanna do, uses turn" +
-                            "\n Menu - go to the menu\nLook - inspect a specific enemy");
-                    }
-                    else if (Player_action.ToLower() == "menu")
-                    {
-                        menu.Pause_menu(); ai.GPT = menu.GPT;
-                    }
-                    else if (Player_action.ToLower() == "look")
-                    {
-                        Console.WriteLine("Which enemy do you want to inspect ?");
-                        Console.WriteLine(enemy_names);
-                        Player_action = Console.ReadLine();
-                        for (int i = 0; i < enemy.Count; i++)
-                        {
-                            if (enemy[i].Name.ToLower() == Player_action)
-                            {
-                                string properties = "";
-                                for (int j = 0; j < enemy[i].Properties.Count; j++)
-                                {
-                                    properties += enemy[i].Properties[j].Name + " - " + enemy[i].Properties[j].Description + "\n";
-                                }
-                                Console.WriteLine($"Health = {enemy[i].Health},Attack = {enemy[i].Attack}, Defence = {enemy[i].Defence},Properties:\n{properties}");
-                            }
-                        }
-                    }
-                    else if (Player_action.ToLower() == "act")
-                    {
-                        Console.WriteLine("What action?");
-                        Prompt = Console.ReadLine();
-                        Procesed_Prompt = "Labels:\nAction(name,target)\n" +
-                                          "Task: Your task is to determine which action the player wants to take depending on what they said. Use name for the name of the action which the player wants to take. Use target to type the name of whatever creature the player wants to inflict the action on. If the player says they want to inflict some action on themselves, return target as \"player\". In that case, if the action the player chooses is ambigous between multiple different actions, choose the one that has Used on self as True. If information from the player is missing replace it with what you think the player most likely would do. avaliable actions: ";
-                        foreach (Operations d in operations.Values)
-                        {
-                            Procesed_Prompt += $"action name: {d.Name}, action description: {d.Description}. Used on friendly ?:{d.Ally}. Used on self?:{d.Self}";
-                        }
-                        foreach (Character d in enemy)
-                        {
-                            Procesed_Prompt += $"Enemies name:{d.Name}.";
-                        }
-                        foreach (Character d in player)
-                        {
-                            Procesed_Prompt += $"Allies name:{d.Name}.";
-                        }
-                        Procesed_Prompt += "Players action: " + Prompt;
-                        Response = await ai.Get_response(Procesed_Prompt, System, menu);
-                        string uh = GetValues(Response, "Action", "name");
-                        for (int i = 0; i < enemy.Count; i++)
-                        {
-                            if (operations[uh].Ally == "False")
-                            {
-                                if (enemy[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
-                                {
-                                    foreach (Operations ope in operations.Values)
-                                    {
-                                        if (ope.Name == uh.ToLower())
-                                        {
-                                            enemy[i] = Bexecution(uh, player[0], enemy[i], operations).Item1;
-                                            Log += Bexecution(uh, player[0], enemy[i], operations).Item2;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        for (int i = 0; i < player.Count; i++)
-                        {
-                            if (operations[uh].Ally == "True"&& GetValues(Response, "Action", "target").ToLower() != "player")
-                            {
-                                Console.WriteLine("dd");
-                                if (player[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
-                                {
-                                    foreach (Operations ope in operations.Values)
-                                    {
-                                        if (ope.Name == uh.ToLower())
-                                        {
-                                            player[i] = Bexecution(uh, player[0], player[i], operations).Item1;
-                                            Log += Bexecution(uh, player[0], player[i], operations).Item2;
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                Console.WriteLine("dd");
-                                if (GetValues(Response, "Action", "target").ToLower() == "player")
-                                {
-                                    foreach (Operations ope in operations.Values)
-                                    {
-                                        if (ope.Name == uh.ToLower())
-                                        {
-                                            player[0] = Bexecution(uh, player[0], player[i], operations).Item1;
-                                            Log += Bexecution(uh, player[0], player[i], operations).Item2;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        break;
-                    }
-                    else
-                    {
-                        Console.WriteLine("Not a valid action");
-                    }
-                }
-                Console.WriteLine(Log);
-                while (true)
-                {
-                    /* if(uh.ToLower() == "attack")
-                     {
-                         float what = Bexecution("attack", enemy[0], player[0], operations, player[0]); //FUUUUUUUUUUUUUUUUUUUUUCCJUHCJUHJCFUDISHSSAI
-                         Log += $"\n{enemy[0].Name} attacked {player[0].Name} for {player[0].Health - what} Health!";
-                         player[0].Health =  what;
-                     }
-                     if(uh.ToLower() == "heal")
-                     {
-                         float what = Bexecution("heal", enemy[0], player[0], operations, enemy[0]); //works
-                         Log += $"\n{enemy[0].Name} healed for {what - enemy[0].Health} Health!";
-                         enemy[0].Health = what;
-                     }*/
-                    /* foreach (Character character in enemy)
-                     {
-                         Procesed_Prompt =
-                     "Labels:\nAction(reasoning,name)\n" +
-                     $"Task:You are in a fearsome battle with {player[0].Name}, your goal is to decide which action would be the best to take right now. Use reasoning to type out your reason for commiting the action you chose, action for the action name. " +
-                     $"Your stats and Foo's stats: Yours: Health: {character.Health}, Defence: {character.Defence}, Attack: {character.Attack}. " +
-                     $"Foo's stats:Health: {player[0].Health}, Defence: {player[0].Defence}, Attack: {player[0].Attack}. Actions avaliable to you:";
-                         foreach (Operations a in operations.Values)
-                         {
-                             Procesed_Prompt += $"action name: {a.Name}, action description: {a.Description}.";
-                         }
-                         Response = await ai.Get_response(Procesed_Prompt, System, menu);
-                         string uh = GetValues(Response,"Action","name");
-                         foreach (Operations ope in operations.Values)
-                         {
-                             if (ope.Name == uh.ToLower())
-                             {
-                                 player[0] = Bexecution(uh, character, player[0], operations).Item1;
-                                 Log += Bexecution(uh, character, player[0], operations).Item2;
-                             }
-                         }
-                     }*/
-                    for (int e = 0; e < enemy.Count; e++)
-                    {
-                        Procesed_Prompt = "Labels:\nReasoning(advantages,disadvantages,course_of_action)\nAction(name,target)\v" +
-                                              $"Task: You are {enemy[e]}. Your task is to determine which action to take depending on the situation at hand, try to work for the good of the team and perdict what you allies and enemies will do. You should use the descriptions of actions and compare them to your statistics to see what would be the most beneficial. Use the label reasoning and its components to think out your options and decide on the best course of action, comparing the advantages of your stats to your disatvantages. Use name for the name of the action you want to take. Use target to type the name of the entity you want to inflict the action on. If you want to inflich an action on yourself, return target as \"player\". In that case, if the action you want to choose is ambigous between multiple actions, choose the one that has \"Used on self\" as True. avaliable actions: ";
-                        foreach (Operations d in operations.Values)
-                        {
-                            Procesed_Prompt += $"action name: {d.Name}, action description: {d.Description}. Used on friendly ?:{d.Ally}. Used on self?:{d.Self}";
-                        }
-                        Procesed_Prompt += "Enemies:";
-                        foreach (Character d in player)
-                        {
-                            Procesed_Prompt += $"Enemies name:{d.Name}. {d.Name}'s Health: {d.Health}\n";
-                        }
-                        Procesed_Prompt += "Allies:";
-                        foreach (Character d in enemy)
-                        {
-                            Procesed_Prompt += $"Allies name:{d.Name}. {d.Name}'s Health: {d.Health}\n";
-                        }
-                        Procesed_Prompt += "\n\noutput:";
-                        Response = await ai.Get_response(Procesed_Prompt, System, menu);
-                        string uh = GetValues(Response, "Action", "name");
-                        for (int i = 0; i < player.Count; i++)
-                        {
-                            if (operations[uh].Ally == "False")
-                            {
-                                if (player[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
-                                {
-                                    foreach (Operations ope in operations.Values)
-                                    {
-                                        if (ope.Name == uh.ToLower())
-                                        {
-                                            player[i] = Bexecution(uh, enemy[e], player[i], operations).Item1;
-                                            Log += Bexecution(uh, enemy[e], player[i], operations).Item2;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                        for (int i = 0; i < enemy.Count; i++)
-                        {
-                            if (operations[uh].Ally == "True" && GetValues(Response, "Action", "target").ToLower() != "player")
-                            {
-                                Console.WriteLine("dd");
-                                if (enemy[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
-                                {
-                                    foreach (Operations ope in operations.Values)
-                                    {
-                                        if (ope.Name == uh.ToLower())
-                                        {
-                                            enemy[i] = Bexecution(uh, enemy[e], enemy[i], operations).Item1;
-                                            Log += Bexecution(uh, enemy[e], enemy[i], operations).Item2;
-                                        }
-                                    }
-                                }
-                            }
-                            else
-                            {
-                                if (GetValues(Response, "Action", "target").ToLower() == "player")
-                                {
-                                    foreach (Operations ope in operations.Values)
-                                    {
-                                        if (ope.Name == uh.ToLower())
-                                        {
-                                            enemy[e] = Bexecution(uh, enemy[e], enemy[i], operations).Item1;
-                                            Log += Bexecution(uh, enemy[e], enemy[i], operations).Item2;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    break;
-                }
+                Log += $"--Turn: {turn}--\n";
+                await PlayerTurn(player, enemy, operations,enemy_names);
+                await EnemyTurn(player,enemy,operations);
+                Console.WriteLine(await Narrator(Log,turn));
+                turn++;
             }
         }
         public (Character,string) Bexecution(string Operation_name, Character char1, Character char2, Dictionary<string, Operations> operations)
@@ -792,6 +577,206 @@ namespace Gayme
             string valueA = objectA?[value].ToString();
             return valueA;
         }
+        public async Task<string> Narrator(string Log,int turn)
+        {
+            Procesed_Prompt = $"Labels:\nNarration(narration)\nTask: You are the narrator, your goal is to summarize an action / actions performed by characters in a situation. Use narration to give a short and flavorful descriptions of actions some characters have taken. Narrate for the current turn, the current turn is: {turn}. Log:\n{Log}";
+            Procesed_Prompt += "\n\noutput:";
+            Response = await ai.Get_response(Procesed_Prompt, System, menu);
+            string narration = GetValues(Response,"Narration","narration");
+            return narration;
+        }
+        public async Task EnemyTurn(List<Character> player, List<Character> enemy, Dictionary<string, Operations> operations)
+        {
+            while (true)
+            {
+                for (int e = 0; e < enemy.Count; e++)
+                {
+                    Procesed_Prompt = "Labels:\nReasoning(advantages,disadvantages,course_of_action)\nAction(name,target)\v" +
+                                          $"Task: You are {enemy[e]}. Your task is to determine which action to take depending on the situation at hand, try to work for the good of the team and perdict what you allies and enemies will do. You should use the descriptions of actions and compare them to your statistics to see what would be the most beneficial. Use the label reasoning and its components to think out your options and decide on the best course of action, comparing the advantages of your stats to your disatvantages. Use name for the name of the action you want to take. Use target to type the name of the entity you want to inflict the action on. If you want to inflich an action on yourself, return target as \"player\". In that case, if the action you want to choose is ambigous between multiple actions, choose the one that has \"Used on self\" as True. avaliable actions: ";
+                    foreach (Operations d in operations.Values)
+                    {
+                        Procesed_Prompt += $"action name: {d.Name}, action description: {d.Description}. Used on friendly ?:{d.Ally}. Used on self?:{d.Self}";
+                    }
+                    Procesed_Prompt += "Enemies:";
+                    foreach (Character d in player)
+                    {
+                        Procesed_Prompt += $"Enemies name:{d.Name}. {d.Name}'s Health: {d.Health}\n";
+                    }
+                    Procesed_Prompt += "Allies:";
+                    foreach (Character d in enemy)
+                    {
+                        Procesed_Prompt += $"Allies name:{d.Name}. {d.Name}'s Health: {d.Health}\n";
+                    }
+                    Procesed_Prompt += "\n\noutput:";
+                    Response = await ai.Get_response(Procesed_Prompt, System, menu);
+                    string uh = GetValues(Response, "Action", "name");
+                    for (int i = 0; i < player.Count; i++)
+                    {
+                        if (operations[uh].Ally == "False")
+                        {
+                            if (player[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
+                            {
+                                foreach (Operations ope in operations.Values)
+                                {
+                                    if (ope.Name == uh.ToLower())
+                                    {
+                                        player[i] = Bexecution(uh, enemy[e], player[i], operations).Item1;
+                                        Log += Bexecution(uh, enemy[e], player[i], operations).Item2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    for (int i = 0; i < enemy.Count; i++)
+                    {
+                        if (operations[uh].Ally == "True" && GetValues(Response, "Action", "target").ToLower() != "player")
+                        {
+                            if (enemy[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
+                            {
+                                foreach (Operations ope in operations.Values)
+                                {
+                                    if (ope.Name == uh.ToLower())
+                                    {
+                                        enemy[i] = Bexecution(uh, enemy[e], enemy[i], operations).Item1;
+                                        Log += Bexecution(uh, enemy[e], enemy[i], operations).Item2;
+                                        
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (GetValues(Response, "Action", "target").ToLower() == "player")
+                            {
+                                foreach (Operations ope in operations.Values)
+                                {
+                                    if (ope.Name == uh.ToLower())
+                                    {
+                                        enemy[e] = Bexecution(uh, enemy[e], enemy[i], operations).Item1;
+                                        Log += Bexecution(uh, enemy[e], enemy[i], operations).Item2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                break;
+            }
+        }
+        public async Task PlayerTurn(List<Character> player, List<Character> enemy, Dictionary<string, Operations> operations, string enemy_names)
+        {
+            while (true)
+            {
+                Console.WriteLine("What do you want to do ?\n type Help for help");
+                Player_action = Console.ReadLine().ToLower();
+                if (Player_action.ToLower() == "local")
+                {
+                    ai.GPT = "local";
+                }
+                else if (Player_action.ToLower() == "help")
+                {
+                    Console.WriteLine("Type:\nAct - Action that will be given to the ai for processing, can be anything you wanna do, uses turn" +
+                        "\n Menu - go to the menu\nLook - inspect a specific enemy");
+                }
+                else if (Player_action.ToLower() == "menu")
+                {
+                    menu.Pause_menu(); ai.GPT = menu.GPT;
+                }
+                else if (Player_action.ToLower() == "look")
+                {
+                    Console.WriteLine("Which enemy do you want to inspect ?");
+                    Console.WriteLine(enemy_names);
+                    Player_action = Console.ReadLine();
+                    for (int i = 0; i < enemy.Count; i++)
+                    {
+                        if (enemy[i].Name.ToLower() == Player_action)
+                        {
+                            string properties = "";
+                            for (int j = 0; j < enemy[i].Properties.Count; j++)
+                            {
+                                properties += enemy[i].Properties[j].Name + " - " + enemy[i].Properties[j].Description + "\n";
+                            }
+                            Console.WriteLine($"Health = {enemy[i].Health},Attack = {enemy[i].Attack}, Defence = {enemy[i].Defence},Properties:\n{properties}");
+                        }
+                    }
+                }
+                else if (Player_action.ToLower() == "act")
+                {
+                    Console.WriteLine("What action?");
+                    Prompt = Console.ReadLine();
+                    Procesed_Prompt = "Labels:\nAction(name,target)\n" +
+                                      "Task: Your task is to determine which action the player wants to take depending on what they said. Use name for the name of the action which the player wants to take. Use target to type the name of whatever creature the player wants to inflict the action on. If the player says they want to inflict some action on themselves, return target as \"player\". In that case, if the action the player chooses is ambigous between multiple different actions, choose the one that has Used on self as True. If information from the player is missing replace it with what you think the player most likely would do. avaliable actions: ";
+                    foreach (Operations d in operations.Values)
+                    {
+                        Procesed_Prompt += $"action name: {d.Name}, action description: {d.Description}. Used on friendly ?:{d.Ally}. Used on self?:{d.Self}";
+                    }
+                    foreach (Character d in enemy)
+                    {
+                        Procesed_Prompt += $"Enemies name:{d.Name}.";
+                    }
+                    foreach (Character d in player)
+                    {
+                        Procesed_Prompt += $"Allies name:{d.Name}.";
+                    }
+                    Procesed_Prompt += "Players action: " + Prompt;
+                    Response = await ai.Get_response(Procesed_Prompt, System, menu);
+                    string uh = GetValues(Response, "Action", "name");
+                    for (int i = 0; i < enemy.Count; i++)
+                    {
+                        if (operations[uh].Ally == "False")
+                        {
+                            if (enemy[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
+                            {
+                                foreach (Operations ope in operations.Values)
+                                {
+                                    if (ope.Name == uh.ToLower())
+                                    {
+                                        enemy[i] = Bexecution(uh, player[0], enemy[i], operations).Item1;
+                                        Log += Bexecution(uh, player[0], enemy[i], operations).Item2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    for (int i = 0; i < player.Count; i++)
+                    {
+                        if (operations[uh].Ally == "True" && GetValues(Response, "Action", "target").ToLower() != "player")
+                        {
+                            if (player[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
+                            {
+                                foreach (Operations ope in operations.Values)
+                                {
+                                    if (ope.Name == uh.ToLower())
+                                    {
+                                        player[i] = Bexecution(uh, player[0], player[i], operations).Item1;
+                                        Log += Bexecution(uh, player[0], player[i], operations).Item2;
+                                    }
+                                }
+                            }
+                        }
+                        else
+                        {
+                            if (GetValues(Response, "Action", "target").ToLower() == "player")
+                            {
+                                foreach (Operations ope in operations.Values)
+                                {
+                                    if (ope.Name == uh.ToLower())
+                                    {
+                                        player[0] = Bexecution(uh, player[0], player[i], operations).Item1;
+                                        Log += Bexecution(uh, player[0], player[i], operations).Item2;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    break;
+                }
+                else
+                {
+                    Console.WriteLine("Not a valid action");
+                }
+            }
+        }
     }
     public class Basic
     {
@@ -845,10 +830,10 @@ namespace Gayme
         public List<Item> Equipment { get; set; }
         public Character()
         {
-            Health = 100;
+            Health = 12;
             Name = "Foo";
-            Attack = 15;
-            Defence = 2;
+            Attack = 1;
+            Defence = 1;
             Properties = new List<Properties>();
             Inventory = new List<Item>();
             Equipment = new List<Item>();
@@ -917,7 +902,6 @@ namespace Gayme
                 if (GPT == "gpt-4" || GPT == "gpt-3.5-turbo")
                 {
                     Process = await OpenAI_GPT.CallGPTGeneric(GPT, system, prompt);
-                    Console.WriteLine(Process);
                     Response = JArray.Parse(Process.ToString());
                     return Response;
                 }
@@ -926,7 +910,6 @@ namespace Gayme
                     Local_GPT local_GPT = new Local_GPT();
                     prompt = "This is your system message, it is a message directing you on how you should act and what you should do, above all else that will be said later. You have to follow the system message no matter what. The system message will end like this: (end of system message). The system message:[\n\n" + system + "\n\n](end of system message)\n\n\n" + prompt+"\noutput: ";
                     Process = await local_GPT.Run(prompt);
-                    Console.WriteLine(Process);
                     Response = JArray.Parse(Process.ToString());
                     return Response;
                 }
