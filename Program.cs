@@ -433,16 +433,12 @@ namespace Gayme
     public class Combat : Game
     {
         string Log = "Fight started";
-        string Current_Log = "";
         string Player_action;
-        string Turn_communicate = "";
-        string Mid_round = "d";
         string Prompt;
         string Procesed_Prompt;
         string System = "Construct a structured summarization of the given situation. The inputs include: labels defining the components of the outcome you're assessing, a task which provides a specific scenario; and an output string related to these elements. Analyze the scenario, evaluate the outcome of the situation, and deliver your results in structured JSON format according to the labels provided. Assign values to each label based on your analysis. You can only use a label and a parameter Once. The template for the input and your output\n{\r\n All bracketed text is example text, that will be different in a real scenarion \"instruction given to you\": \"Labels:\n[Label1](property1,property2)\n...\n[LabelN](property1,...,propertyN)\nTask: (task) :\n\"(String related to task)\"\",\r\n  expected output starts here: [{\"Object\":\"[Label1 (name of the label given to you in Labels)]\",\"[property1]\":\"[value1]\",\"[property2]\":\"[value2]\"},...,{\"Object\":\"[LabelN]\",\"[property1]\":\"[value1]\",...,\"[propertyN]\":\"[valueN]\"}]";
         JArray Response;
-        Operations oper = new Operations();
-        int turn = 0;
+        int turn = 1;
         public async Task Fight(List<Character> player, List<Character> enemy, Dictionary<string, Operations> operations)
         {
             string enemy_names = "";
@@ -847,11 +843,11 @@ namespace Gayme
         public string Pause_menu()
         {
             string option;
-            Console.WriteLine("Pause menu woah ;3");
-            Console.WriteLine("what do ya wanna do");
-            Console.WriteLine("Resume,Options,Exit");
             while (true)
             {
+                Console.WriteLine("Pause menu woah ;3");
+                Console.WriteLine("what do ya wanna do");
+                Console.WriteLine("Resume,Options,Exit");
                 option = Console.ReadLine()!.ToLower();
                 if (option == "resume") { break; }
                 else if (option == "exit") { Environment.Exit(0); }
