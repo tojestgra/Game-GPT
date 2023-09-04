@@ -1,2 +1,2 @@
 # Game-GPT
-A Project aiming to integrate LLM's into an open world RPG, getting infinite replayability.
+This project aims to integrate large language models (LLMs) into an open-world RPG game to provide players with infinite replayability. By utilizing LLMs, the game can generate dynamic and interactive content, including quests, dialogues, and narratives, in real-time based on player actions and decisions. This integration enhances the game's storytelling capabilities, allowing for more immersive and personalized gameplay experiences. With the help of LLMs, every playthrough becomes unique as the game adapts and responds to the player's choices, making it a truly open-ended gaming experience.
