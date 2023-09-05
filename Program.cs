@@ -436,7 +436,7 @@ namespace Gayme
         string Player_action;
         string Prompt;
         string Procesed_Prompt;
-        string System = "Construct a structured summarization of the given situation. The inputs include: labels defining the components of the outcome you're assessing, a task which provides a specific scenario; and an output string related to these elements. Analyze the scenario, evaluate the outcome of the situation, and deliver your results in structured JSON format according to the labels provided. Assign values to each label based on your analysis. You can only use a label and a parameter Once. The template for the input and your output\n{\r\n All bracketed text is example text, that will be different in a real scenarion \"instruction given to you\": \"Labels:\n[Label1](property1,property2)\n...\n[LabelN](property1,...,propertyN)\nTask: (task) :\n\"(String related to task)\"\",\r\n  expected output starts here: [{\"Object\":\"[Label1 (name of the label given to you in Labels)]\",\"[property1]\":\"[value1]\",\"[property2]\":\"[value2]\"},...,{\"Object\":\"[LabelN]\",\"[property1]\":\"[value1]\",...,\"[propertyN]\":\"[valueN]\"}]";
+        string System = "Your goal is to analyze a given situation and summarize its outcome by following certain guidelines defined through labels.\r\n\r\nThe input contains two essential components: 'Labels', which elucidate certain properties you need to assess; and 'Task', which presents a task you are to follow to fill out the labels, along with a related string. Your responsibility is to evaluate the provided scenario based on the properties defined by the labels.\r\n\r\nOnce you complete your analysis, the outputs are to be formatted, in order, as JSON objects. Specifically, for every label, an output object is created with fields corresponding to the properties mentioned in the label.An example:\r\n\r\nuser input: {\r\n  \"instruction\": \"Labels: [Label1](property1,property2)...[LabelN](property1,...,propertyN) Task: (task) : \"(String related to task)\"\",\r\n}\r\n\r\nexpected output from you: [\r\n  {\r\n    \"Object\": \"[Label1]\",\r\n    \"[property1]\": \"[value1]\",\r\n    \"[property2]\": \"[value2]\",\r\n  },\r\n  ...,\r\n  {\r\n    \"Object\": \"[LabelN]\",\r\n    \"[property1]\": \"[value1]\",\r\n    ...,\r\n    \"[propertyN]\": \"[valueN]\"\r\n  }\r\n]\r\n\r\nThe values assigned to each property should be based on your analysis of the task scenario. Make sure the output JSON objects accurately represent the task given in relation to the properties defined in the labels. Make sure to not omit any labels or properties. Remember to strictly adhere to JSON rules. Last of all, remember that you can only use a label and a property once.";
         JArray Response;
         int turn = 1;
         public async Task Fight(List<Character> player, List<Character> enemy, Dictionary<string, Operations> operations)
@@ -561,8 +561,7 @@ namespace Gayme
         }
         public async Task<string> Narrator(string Log,int turn)
         {
-            Procesed_Prompt = $"Labels:\nNarration(narration)\nTask: You are the narrator, your goal is to summarize an action / actions performed by characters in a situation. Use narration to give a short and flavorful descriptions of actions some characters have taken. Narrate for the current turn, the current turn is: {turn}. Log:\n{Log}";
-            Procesed_Prompt += "\n\noutput:";
+            Procesed_Prompt = $"Labels:\nNarration(narration)\nTask: You are the narrator, your goal is to summarize an action / actions performed by characters in a situation. Use narration to give a short and flavorful descriptions of actions characters in the log string have taken. Narrate for the current turn, but also base a bit of your narration on what has previously happened.\nThe current turn is: {turn}.Log:\n{Log}";
             Response = await ai.Get_response(Procesed_Prompt, System, menu);
             string narration = GetValues(Response,"Narration","narration");
             return narration;
@@ -573,23 +572,21 @@ namespace Gayme
             {
                 for (int e = 0; e < enemy.Count; e++)
                 {
-                    Procesed_Prompt = "Labels:\nReasoning(advantages,disadvantages,course_of_action)\nAction(name,target)\v" +
-                                          $"Task: You are {enemy[e]}. Your task is to determine which action to take depending on the situation at hand, try to work for the good of the team and perdict what you allies and enemies will do. You should use the descriptions of actions and compare them to your statistics to see what would be the most beneficial. Use the label reasoning and its components to think out your options and decide on the best course of action, comparing the advantages of your stats to your disatvantages. Use name for the name of the action you want to take. Use target to type the name of the entity you want to inflict the action on. If you want to inflich an action on yourself, return target as \"player\". In that case, if the action you want to choose is ambigous between multiple actions, choose the one that has \"Used on self\" as True. avaliable actions: ";
+                    Procesed_Prompt = "Labels:\r\nReasoning(advantages,disadvantages,course_of_action)\r\nAction(name,target)\r\n\r\nTask: You are playing the role of {enemy[e]}. Your objective is to make prudent decisions based on the current game dynamics, prioritizing the team's interests and predicting possible moves from your allies and adversaries. Engage in a thorough analysis of potential actions by juxtaposing them with your character's statistics to determine the most profitable route. Employ the label 'reasoning' along with its elements - 'advantages', 'disadvantages', and 'course of action' - to methodically evaluate all possibilities and ascertain the optimal course of action. This will involve weighing the merits of your character's stats against the demerits.\r\n\r\nThe 'name' label will denote your chosen action, whereas the 'target' label will indicate the entity at the receiving end of your action. Should you decide to direct the action towards yourself, utilize 'player' for the 'target'. In the event of ambiguity concerning multiple actions, select the action bearing the attribute \"Used on self\" as True. Try to keep your reasoning short and to the point. Your available options are outlined below:\n";
                     foreach (Operations d in operations.Values)
                     {
-                        Procesed_Prompt += $"action name: {d.Name}, action description: {d.Description}. Used on friendly ?:{d.Ally}. Used on self?:{d.Self}";
+                        Procesed_Prompt += $"Action name: {d.Name}. Action description: {d.Description}. Used on friendly: {d.Ally}. Used on self: {d.Self}.\n";
                     }
-                    Procesed_Prompt += "Enemies:";
+                    Procesed_Prompt += "Enemies:\n\n";
                     foreach (Character d in player)
                     {
-                        Procesed_Prompt += $"Enemies name:{d.Name}. {d.Name}'s Health: {d.Health}\n";
+                        Procesed_Prompt += $"Enemy: {d.Name}.\n";
                     }
-                    Procesed_Prompt += "Allies:";
+                    Procesed_Prompt += "\nAllies:\n\n";
                     foreach (Character d in enemy)
                     {
-                        Procesed_Prompt += $"Allies name:{d.Name}. {d.Name}'s Health: {d.Health}\n";
+                        Procesed_Prompt += $"Ally: {d.Name}.\n";
                     }
-                    Procesed_Prompt += "\n\noutput:";
                     Response = await ai.Get_response(Procesed_Prompt, System, menu);
                     string uh = GetValues(Response, "Action", "name");
                     for (int i = 0; i < player.Count; i++)
@@ -687,20 +684,23 @@ namespace Gayme
                     Console.WriteLine("What action?");
                     Prompt = Console.ReadLine();
                     Procesed_Prompt = "Labels:\nAction(name,target)\n" +
-                                      "Task: Your task is to determine which action the player wants to take depending on what they said. Use name for the name of the action which the player wants to take. Use target to type the name of whatever creature the player wants to inflict the action on. If the player says they want to inflict some action on themselves, return target as \"player\". In that case, if the action the player chooses is ambigous between multiple different actions, choose the one that has Used on self as True. If information from the player is missing replace it with what you think the player most likely would do. avaliable actions: ";
+                                      "Task: Your task is to determine which action the player wants to take depending on what they said. Use name for the name of the action which the player wants to take. Use target to type the name of whatever creature the player wants to inflict the action on. If the player says they want to inflict some action on themselves, return target as \"player\". In that case, if the action the player chooses is ambigous between multiple different actions, choose the one that has Used on self as True. If information from the player is missing replace it with what you think the player most likely would do. avaliable actions:\n";
                     foreach (Operations d in operations.Values)
                     {
-                        Procesed_Prompt += $"action name: {d.Name}, action description: {d.Description}. Used on friendly ?:{d.Ally}. Used on self?:{d.Self}";
+                        Procesed_Prompt += $"Action name: {d.Name}. Action description: {d.Description}. Used on friendly: {d.Ally}. Used on self: {d.Self}.\n";
                     }
+                    Procesed_Prompt += "Enemies:\n\n";
                     foreach (Character d in enemy)
                     {
-                        Procesed_Prompt += $"Enemies name:{d.Name}.";
+                        Procesed_Prompt += $"Enemy: {d.Name}.\n";
                     }
+                    Procesed_Prompt += "\nAllies:\n\n";
                     foreach (Character d in player)
                     {
-                        Procesed_Prompt += $"Allies name:{d.Name}.";
+                        Procesed_Prompt += $"Ally: {d.Name}.\n";
                     }
-                    Procesed_Prompt += "Players action: " + Prompt;
+                    Procesed_Prompt += "\n\nPlayers action: " + Prompt;
+                    Console.WriteLine(Procesed_Prompt);
                     Response = await ai.Get_response(Procesed_Prompt, System, menu);
                     string uh = GetValues(Response, "Action", "name");
                     for (int i = 0; i < enemy.Count; i++)
@@ -875,7 +875,7 @@ namespace Gayme
         JToken Process { get; set; }
         public AI()
         {
-            GPT = "gpt-4";
+            GPT = "gpt-3.5-turbo";
         }
         public async Task<JArray> Get_response(string prompt, string system, Menu menu)
         {
@@ -884,6 +884,7 @@ namespace Gayme
                 if (GPT == "gpt-4" || GPT == "gpt-3.5-turbo")
                 {
                     Process = await OpenAI_GPT.CallGPTGeneric(GPT, system, prompt);
+                    Console.WriteLine(Process);
                     Response = JArray.Parse(Process.ToString());
                     return Response;
                 }
