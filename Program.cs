@@ -8,6 +8,8 @@ using System.Linq.Dynamic.Core;
 using System.Text.RegularExpressions;
 using System.Data;
 using Microsoft.CodeAnalysis;
+using System.Collections.Concurrent;
+using Antlr.Runtime;
 
 namespace Gayme
 {
@@ -432,7 +434,7 @@ namespace Gayme
     }
     public class Combat : Game
     {
-        string Log = "Fight started";
+        string Log = "";
         string Player_action;
         string Prompt;
         string Procesed_Prompt;
@@ -451,13 +453,38 @@ namespace Gayme
             while (true)
             {
                 Log += $"--Turn: {turn}--\n";
-                await PlayerTurn(player, enemy, operations,enemy_names);
-                await EnemyTurn(player,enemy,operations);
+                await Load(PlayerTurn(player, enemy, operations, enemy_names));
+                await Load(AiTurn(enemy, player, operations,true));
+                await Load(AiTurn(player, enemy, operations,false));
+                Log += "\n";
                 Console.WriteLine(await Narrator(Log,turn));
                 turn++;
             }
         }
-        public (Character,string) Bexecution(string Operation_name, Character char1, Character char2, Dictionary<string, Operations> operations)
+        public async Task Load(Task task)
+        {
+            int dotCount = 0;
+            while (true)
+            {
+                if(task.IsCompleted)
+                {
+                    return;
+                }
+                if (dotCount == 3)
+                {
+                    Console.Write("\r   \r"); // clear the line after 3 dots
+                    dotCount = 0;
+                }
+                else
+                {
+                    Console.Write(".");
+                    dotCount++;
+                }
+
+                await Task.Delay(1000);
+            }
+        }
+        public async Task<(Character,string)> Bexecution(string Operation_name, Character char1, Character char2, Dictionary<string, Operations> operations)
         {
             // Create a new operation based on the template from the dictionary
             var operationTemplate = GetOperation(operations, Operation_name);
@@ -561,18 +588,19 @@ namespace Gayme
         }
         public async Task<string> Narrator(string Log,int turn)
         {
-            Procesed_Prompt = $"Labels:\nNarration(narration)\nTask: You are the narrator, your goal is to summarize an action / actions performed by characters in a situation. Use narration to give a short and flavorful descriptions of actions characters in the log string have taken. Narrate for the current turn, but also base a bit of your narration on what has previously happened.\nThe current turn is: {turn}.Log:\n{Log}";
+            Procesed_Prompt = $"Labels:\nNarration(narration)\nTask: You are the narrator, your goal is to summarize an action / actions performed by characters in a situation. Use narration to give a short and flavorful descriptions of actions characters in the log string have taken. Narrate for the current turn, but also base a bit of your narration on what has previously happened.\nThe current turn is: {turn}. Log:\n{Log}";
+            Console.WriteLine(Procesed_Prompt);
             Response = await ai.Get_response(Procesed_Prompt, System, menu);
             string narration = GetValues(Response,"Narration","narration");
             return narration;
         }
-        public async Task EnemyTurn(List<Character> player, List<Character> enemy, Dictionary<string, Operations> operations)
+        public async Task AiTurn(List<Character> player, List<Character> enemy, Dictionary<string, Operations> operations,bool players)
         {
-            while (true)
-            {
+            if (players == true && player.Count == 1) return;
+            if (players == true) enemy.Remove(enemy.First());
                 for (int e = 0; e < enemy.Count; e++)
                 {
-                    Procesed_Prompt = "Labels:\r\nReasoning(advantages,disadvantages,course_of_action)\r\nAction(name,target)\r\n\r\nTask: You are playing the role of {enemy[e]}. Your objective is to make prudent decisions based on the current game dynamics, prioritizing the team's interests and predicting possible moves from your allies and adversaries. Engage in a thorough analysis of potential actions by juxtaposing them with your character's statistics to determine the most profitable route. Employ the label 'reasoning' along with its elements - 'advantages', 'disadvantages', and 'course of action' - to methodically evaluate all possibilities and ascertain the optimal course of action. This will involve weighing the merits of your character's stats against the demerits.\r\n\r\nThe 'name' label will denote your chosen action, whereas the 'target' label will indicate the entity at the receiving end of your action. Should you decide to direct the action towards yourself, utilize 'player' for the 'target'. In the event of ambiguity concerning multiple actions, select the action bearing the attribute \"Used on self\" as True. Try to keep your reasoning short and to the point. Your available options are outlined below:\n";
+                    Procesed_Prompt = $"Labels:\r\nReasoning(advantages,disadvantages,course_of_action)\r\nAction(name,target)\r\n\r\nTask: You are playing the role of {enemy[e]}. Your objective is to make prudent decisions based on the current game dynamics, prioritizing the team's interests and predicting possible moves from your allies and adversaries. Engage in a thorough analysis of potential actions by comparing their descriptions with your character's statistics to determine the best route. Use the label 'reasoning' along with its elements - 'advantages', 'disadvantages', and 'course of action' - to methodically evaluate all possibilities and ascertain the optimal course of action. This will involve weighing the merits of your character's stats against the disadvantages.\r\n\r\nThe 'name' label will denote your chosen action, whereas the 'target' label will indicate the entity at the receiving end of your action. Should you decide to direct the action towards yourself, utilize 'player' for the 'target'. Try to keep your reasoning short and to the point. You are only allowed to use one action, so choose carefully. Your available options are outlined below:\n";
                     foreach (Operations d in operations.Values)
                     {
                         Procesed_Prompt += $"Action name: {d.Name}. Action description: {d.Description}. Used on friendly: {d.Ally}. Used on self: {d.Self}.\n";
@@ -589,18 +617,21 @@ namespace Gayme
                     }
                     Response = await ai.Get_response(Procesed_Prompt, System, menu);
                     string uh = GetValues(Response, "Action", "name");
-                    for (int i = 0; i < player.Count; i++)
+                    Console.WriteLine(Response);
+                    if (operations[uh].Ally == "False")
                     {
-                        if (operations[uh].Ally == "False")
+                        for (int i = 0; i < player.Count; i++)
                         {
+
                             if (player[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
                             {
                                 foreach (Operations ope in operations.Values)
                                 {
                                     if (ope.Name == uh.ToLower())
                                     {
-                                        player[i] = Bexecution(uh, enemy[e], player[i], operations).Item1;
-                                        Log += Bexecution(uh, enemy[e], player[i], operations).Item2;
+                                        var c = await Bexecution(uh, enemy[e], player[i], operations);
+                                        player[i] = c.Item1;
+                                        Log += c.Item2;
                                     }
                                 }
                             }
@@ -608,39 +639,23 @@ namespace Gayme
                     }
                     for (int i = 0; i < enemy.Count; i++)
                     {
-                        if (operations[uh].Ally == "True" && GetValues(Response, "Action", "target").ToLower() != "player")
+                        if ((operations[uh].Ally == "True" && GetValues(Response, "Action", "target").ToLower() != "player")||(GetValues(Response, "Action", "target").ToLower() == "player" && operations[uh].Self.ToLower() == "true"))
                         {
-                            if (enemy[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
+                            if (enemy[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower()|| GetValues(Response, "Action", "target").ToLower() == "player")
                             {
                                 foreach (Operations ope in operations.Values)
                                 {
                                     if (ope.Name == uh.ToLower())
                                     {
-                                        enemy[i] = Bexecution(uh, enemy[e], enemy[i], operations).Item1;
-                                        Log += Bexecution(uh, enemy[e], enemy[i], operations).Item2;
-                                        
-                                    }
-                                }
-                            }
-                        }
-                        else
-                        {
-                            if (GetValues(Response, "Action", "target").ToLower() == "player")
-                            {
-                                foreach (Operations ope in operations.Values)
-                                {
-                                    if (ope.Name == uh.ToLower())
-                                    {
-                                        enemy[e] = Bexecution(uh, enemy[e], enemy[i], operations).Item1;
-                                        Log += Bexecution(uh, enemy[e], enemy[i], operations).Item2;
+                                        var c = await Bexecution(uh, enemy[e], enemy[i], operations);
+                                        enemy[i] = c.Item1;
+                                        Log += c.Item2;
                                     }
                                 }
                             }
                         }
                     }
                 }
-                break;
-            }
         }
         public async Task PlayerTurn(List<Character> player, List<Character> enemy, Dictionary<string, Operations> operations, string enemy_names)
         {
@@ -700,7 +715,6 @@ namespace Gayme
                         Procesed_Prompt += $"Ally: {d.Name}.\n";
                     }
                     Procesed_Prompt += "\n\nPlayers action: " + Prompt;
-                    Console.WriteLine(Procesed_Prompt);
                     Response = await ai.Get_response(Procesed_Prompt, System, menu);
                     string uh = GetValues(Response, "Action", "name");
                     for (int i = 0; i < enemy.Count; i++)
@@ -713,8 +727,9 @@ namespace Gayme
                                 {
                                     if (ope.Name == uh.ToLower())
                                     {
-                                        enemy[i] = Bexecution(uh, player[0], enemy[i], operations).Item1;
-                                        Log += Bexecution(uh, player[0], enemy[i], operations).Item2;
+                                        var c = await Bexecution(uh, player[0], enemy[i], operations);
+                                        enemy[i] = c.Item1;
+                                        Log += c.Item2;
                                     }
                                 }
                             }
@@ -730,8 +745,9 @@ namespace Gayme
                                 {
                                     if (ope.Name == uh.ToLower())
                                     {
-                                        player[i] = Bexecution(uh, player[0], player[i], operations).Item1;
-                                        Log += Bexecution(uh, player[0], player[i], operations).Item2;
+                                        var c = await Bexecution(uh, player[0], player[i], operations);
+                                        player[i] = c.Item1;
+                                        Log +=  c.Item2;
                                     }
                                 }
                             }
@@ -744,8 +760,9 @@ namespace Gayme
                                 {
                                     if (ope.Name == uh.ToLower())
                                     {
-                                        player[0] = Bexecution(uh, player[0], player[i], operations).Item1;
-                                        Log += Bexecution(uh, player[0], player[i], operations).Item2;
+                                        var c = await Bexecution(uh, player[0], player[i], operations);
+                                        player[0] = c.Item1;
+                                        Log += c.Item2;
                                     }
                                 }
                             }
@@ -875,7 +892,7 @@ namespace Gayme
         JToken Process { get; set; }
         public AI()
         {
-            GPT = "gpt-3.5-turbo";
+            GPT = "gpt-4";
         }
         public async Task<JArray> Get_response(string prompt, string system, Menu menu)
         {
@@ -884,7 +901,6 @@ namespace Gayme
                 if (GPT == "gpt-4" || GPT == "gpt-3.5-turbo")
                 {
                     Process = await OpenAI_GPT.CallGPTGeneric(GPT, system, prompt);
-                    Console.WriteLine(Process);
                     Response = JArray.Parse(Process.ToString());
                     return Response;
                 }
@@ -899,41 +915,6 @@ namespace Gayme
                 else { Console.WriteLine("No valid gpt selected ! Select one NOW"); menu.Menu_Options(); }
             }
 
-        }
-        public async Task<float> Calculate(float[] numbers, string operations)
-        {
-            if (operations.Length != numbers.Length - 1)
-            {
-                throw new ArgumentException("The number of operations must be one less than the number of numbers.");
-            }
-
-            float result = numbers[0];
-            for (int i = 0; i < operations.Length; i++)
-            {
-                switch (operations[i])
-                {
-                    case '+':
-                        result += numbers[i + 1];
-                        break;
-                    case '-':
-                        result -= numbers[i + 1];
-                        break;
-                    case '*':
-                        result *= numbers[i + 1];
-                        break;
-                    case '/':
-                        if (numbers[i + 1] == 0)
-                        {
-                            throw new DivideByZeroException("Cannot divide by zero.");
-                        }
-                        result /= numbers[i + 1];
-                        break;
-                    default:
-                        throw new ArgumentException("Invalid operation.");
-                }
-            }
-
-            return result;
         }
     }
     public class Local_GPT
@@ -1047,8 +1028,7 @@ namespace Gayme
             var gptAgent = new OpenAI_GPT();
         v:
             string Prompt = $"{prompt}";
-            var Response = await gptAgent.SendPrompt(Prompt, gpt, 0.7, $"{system}", 200);
-            Console.WriteLine($"Trying to parse gpt's response...");
+            var Response = await gptAgent.SendPrompt(Prompt, gpt, 0.7, $"{system}", 500);
             if (Response == null) { Console.WriteLine($"Didn't recieve a response from GPT, server is probably overloaded, try again ? y\\n"); string asl = Console.ReadLine()!; if (asl == "y") { goto v; } return "no command gpt response"; }
             JObject JsonResponse = JObject.Parse(Response);
             if (JsonResponse.SelectToken("$.choices[0].message.content") == null) { goto v; }
