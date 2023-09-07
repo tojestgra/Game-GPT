@@ -23,7 +23,7 @@ namespace Gayme
         public string Name { get; set; }
         public string Description { get; set; }
         public List<Value> Values { get; set; }
-        public string operation { get; set; }
+        public string Operation { get; set; }
         public string Target { get; set; }
         public string TargetName { get; set; }
         public string Log { get; set; }
@@ -34,7 +34,7 @@ namespace Gayme
             Name = string.Empty;
             Description = string.Empty;
             Values = new List<Value>();
-            operation = string.Empty;
+            Operation = string.Empty;
             Target = string.Empty;
             TargetName = string.Empty;
             Log = $"";
@@ -53,6 +53,7 @@ namespace Gayme
     }
     public class Game
     {
+        public string system = "Your goal is to analyze a given situation and summarize its outcome by following certain guidelines defined through labels.\r\n\r\nThe input contains two essential components: 'Labels', which elucidate certain properties you need to assess; and 'Task', which presents a task you are to follow to fill out the labels, along with a related string. Your responsibility is to evaluate the provided scenario based on the properties defined by the labels.\r\n\r\nOnce you complete your analysis, the outputs are to be formatted, in order, as JSON objects. Specifically, for every label, an output object is created with fields corresponding to the properties mentioned in the label.An example:\r\n\r\nuser input: {\r\n  \"instruction\": \"Labels: [Label1](property1,property2)...[LabelN](property1,...,propertyN) Task: (task) : \"(String related to task)\"\",\r\n}\r\n\r\nexpected output from you: [\r\n  {\r\n    \"Object\": \"[Label1]\",\r\n    \"[property1]\": \"[value1]\",\r\n    \"[property2]\": \"[value2]\",\r\n  },\r\n  ...,\r\n  {\r\n    \"Object\": \"[LabelN]\",\r\n    \"[property1]\": \"[value1]\",\r\n    ...,\r\n    \"[propertyN]\": \"[valueN]\"\r\n  }\r\n]\r\n\r\nThe values assigned to each property should be based on your analysis of the task scenario. Make sure the output JSON objects accurately represent the task given in relation to the properties defined in the labels. Make sure to not omit any labels or properties. Remember to strictly adhere to JSON rules. Last of all, remember that you can only use a label and a property once.";
         public static string[] types = { "string", "int", "float", "double", "Item", "Basic", "Properties", "Character" };
         public string param { get; set; }
         public Combat combat;
@@ -61,14 +62,15 @@ namespace Gayme
         public List<Basic> basic = new List<Basic>();
         public async Task Start()
         {
+            Dictionary<string, Operations> operations = await OperationGeneration(5,"melee combat");
+            /*
             string operation = "Health{Char1.Health} - (Attack{Char1.Attack} - Defence{Char2.Defence})";
-            Dictionary<string,Operations> operations = new Dictionary<string,Operations>();
             Operations op = new Operations()
             {
                 Name = "attack",
                 Description = "Uses attack stat to remove health",
                 Values = new List<Value> { },
-                operation = operation,
+                Operation = operation,
                 Target = "Health",
                 TargetName = "Char2",
                 Log = "{Char1.Name} attacked {Char2.Name}!",
@@ -82,7 +84,7 @@ namespace Gayme
                 Name = "heal",
                 Description = "Heals the target by defence divided by 2",
                 Values = new List<Value> { },
-                operation = operation,
+                Operation = operation,
                 Target = "Health",
                 TargetName = "Char2",
                 Log = "{Char1.Name} healed {Char2.Name} !",
@@ -95,14 +97,14 @@ namespace Gayme
                 Name = "heal_self",
                 Description = "Heals the character by defence divided by 2",
                 Values = new List<Value> { },
-                operation = operation,
+                Operation = operation,
                 Target = "Health",
                 TargetName = "Char1",
                 Log = "{Char1.Name} healed themselves !",
                 Ally = "True",
                 Self = "True"
             };
-            operations.Add(op.Name, op);
+            operations.Add(op.Name, op);*/
             if (param == "combat")
             {
                 combat = new Combat();
@@ -116,6 +118,95 @@ namespace Gayme
                 enemies.Add(smone);
                 await combat.Fight(players, enemies, operations);
             }
+        }
+        public async Task<Dictionary<string, Operations>> OperationGeneration(int n,string theme)
+        {
+            string prompt = $"Labels: Operation(Name,Description,Operation,Target,TargetName,Log,Ally,Self) Task: Create {n} different operations format suitable for a game context, using this theme: theme {theme}. The Operation label comes with the following properties, values, and usage instructions:\r\n\r\n* Name: (string) This is the name of the operation. Any unique identifier you prefer. Example: 'attack or heal_self'.\r\n* Description: (string) This describes what the operation does in the game. Make sure its description matches its name. Example: 'Uses attack stat to remove health'.\r\n* operation: (delegate/lambda) It's a function that takes the character and a list of values to describe how the operation is performed. The entry should code in textual format. Example: 'Health{{Char1.Health}} - (Attack{{Char1.Attack}} - Defence{{Char2.Defence}})'.\r\n* Target: (string) This specifies what the operation targets in the game. It could target 'Health', 'Mana', 'Experience' etc. Example: 'Health'.\r\n* TargetName: (string) This is the name of the target character which the operation is applied on. Either Char1 or Char2. Char1 is the executor of the task, while Char2 is the recipient\r\n* Log: (string) This log is for logging the result of the operation in-game. It usually uses the Name properties of characters involved. Example: '{{Char1.Name}} attacked {{Char2.Name}}!'\r\n* Ally: (string) This determines if the operation can be used on allies. Acceptable entries are 'True' or 'False'. Example: 'False'.\r\n* Self: (string) This determines if the operation can be applied on self. Acceptable entries are 'True' or 'False'. Example: 'False'. The generated operations should be distinct.";
+            JArray response = await ai.Get_response(prompt,system,menu,800);
+            Dictionary<string, Dictionary<string, List<string>>> respon = new Dictionary<string, Dictionary<string, List<string>>>();
+            List<Dictionary<string, List<string>>> objects = new List<Dictionary<string, List<string>>>();
+            List<string> values = new List<string> {"Name","Description","Operation","Target","TargetName","Log","Ally","Self" };
+            Dictionary<string, List<string>> a = new Dictionary<string, List<string>>();
+            a.Add("Operation", values);
+            objects.Add(a);
+            respon = GetValuesGroup(response,objects);
+            Dictionary<string, Operations> result = new Dictionary<string, Operations>();
+
+            foreach (string key in respon.Keys)
+            {
+                Operations operation = new Operations();
+                foreach (string valueKey in respon[key].Keys)
+                {
+                    switch (valueKey)
+                    {
+                        case "Name": operation.Name = respon[key][valueKey].FirstOrDefault(); break;
+                        case "Description": operation.Description = respon[key][valueKey].FirstOrDefault(); break;
+                        case "Operation": operation.Operation = respon[key][valueKey].FirstOrDefault(); break;
+                        case "Target": operation.Target = respon[key][valueKey].FirstOrDefault(); break;
+                        case "TargetName": operation.TargetName = respon[key][valueKey].FirstOrDefault(); break;
+                        case "Log": operation.Log = respon[key][valueKey].FirstOrDefault(); break;
+                        case "Ally": operation.Ally = respon[key][valueKey].FirstOrDefault(); break;
+                        case "Self": operation.Self = respon[key][valueKey].FirstOrDefault(); break;
+                    }
+                }
+                result[key] = operation;
+            }
+
+            return result;
+        }
+        public static string GetValue(JArray jsonArray, string Object, string value)
+        {
+            JToken objectA = jsonArray.FirstOrDefault(jt => jt["Object"].ToString() == Object);
+            string valueA = objectA?[value].ToString();
+            return valueA;
+        }
+        public static List<string> GetValues(JArray jsonArray, string objectName, string value)
+        {
+            List<JToken> matchingObjects = jsonArray.Where(jt => jt["Object"].ToString() == objectName).ToList();
+            List<string> values = new List<string>();
+
+            foreach (var obj in matchingObjects)
+            {
+                values.Add(obj[value].ToString());
+            }
+
+            return values;
+        }
+        public static Dictionary<string, Dictionary<string, List<string>>> GetValuesGroup(JArray jsonArray, List<Dictionary<string, List<string>>> objects)
+        {
+            Dictionary<string, Dictionary<string, List<string>>> matching = new Dictionary<string, Dictionary<string, List<string>>>();
+            foreach (Dictionary<string, List<string>> dictionaries in objects)
+            {
+                foreach (string objec in dictionaries.Keys)
+                {
+                    foreach (List<string> list in dictionaries.Values)
+                    {
+                        foreach (string value in list)
+                        {
+                            List<string> strings = new List<string>();
+                            Dictionary<string, List<string>> e = new Dictionary<string, List<string>>();
+                            strings = GetValues(jsonArray, objec, value);
+                            e.Add(value, strings);
+                            if (matching.ContainsKey(objec))
+                            {
+                                if (matching[objec].ContainsKey(value))
+                                {
+                                    matching[objec][value].AddRange(strings);
+                                }
+                                else
+                                {
+                                    matching[objec].Add(value, strings);
+                                }
+                            }
+                            else
+                            {
+                                matching.Add(objec, e);
+                            }
+                        }
+                    }
+                }
+            }
+            return matching;
         }
         public IDictionary<string, string> GetPropertiesNamesAndTypes(dynamic obj, string[] propertySequence = null, int index = 0)
         {
@@ -409,7 +500,7 @@ namespace Gayme
         {
             List<Value> values = operations.Values;
             var valueDictionary = new Dictionary<string, object>();
-            string operation = operations.operation;
+            string operation = operations.Operation;
 
             foreach (var value in values)
             {
@@ -438,7 +529,6 @@ namespace Gayme
         string Player_action;
         string Prompt;
         string Procesed_Prompt;
-        string System = "Your goal is to analyze a given situation and summarize its outcome by following certain guidelines defined through labels.\r\n\r\nThe input contains two essential components: 'Labels', which elucidate certain properties you need to assess; and 'Task', which presents a task you are to follow to fill out the labels, along with a related string. Your responsibility is to evaluate the provided scenario based on the properties defined by the labels.\r\n\r\nOnce you complete your analysis, the outputs are to be formatted, in order, as JSON objects. Specifically, for every label, an output object is created with fields corresponding to the properties mentioned in the label.An example:\r\n\r\nuser input: {\r\n  \"instruction\": \"Labels: [Label1](property1,property2)...[LabelN](property1,...,propertyN) Task: (task) : \"(String related to task)\"\",\r\n}\r\n\r\nexpected output from you: [\r\n  {\r\n    \"Object\": \"[Label1]\",\r\n    \"[property1]\": \"[value1]\",\r\n    \"[property2]\": \"[value2]\",\r\n  },\r\n  ...,\r\n  {\r\n    \"Object\": \"[LabelN]\",\r\n    \"[property1]\": \"[value1]\",\r\n    ...,\r\n    \"[propertyN]\": \"[valueN]\"\r\n  }\r\n]\r\n\r\nThe values assigned to each property should be based on your analysis of the task scenario. Make sure the output JSON objects accurately represent the task given in relation to the properties defined in the labels. Make sure to not omit any labels or properties. Remember to strictly adhere to JSON rules. Last of all, remember that you can only use a label and a property once.";
         JArray Response;
         int turn = 1;
         public async Task Fight(List<Character> player, List<Character> enemy, Dictionary<string, Operations> operations)
@@ -453,21 +543,24 @@ namespace Gayme
             while (true)
             {
                 Log += $"--Turn: {turn}--\n";
-                await Load(PlayerTurn(player, enemy, operations, enemy_names));
-                await Load(AiTurn(enemy, player, operations,true));
-                await Load(AiTurn(player, enemy, operations,false));
+                await Load(PlayerTurn(player, enemy, operations, enemy_names),"Thinking","Thinking finished !");
+                await Load(AiTurn(enemy, player, operations,true), "Thinking", "Thinking finished !");
+                await Load(AiTurn(player, enemy, operations, false), "Thinking", "Thinking finished !");
                 Log += "\n";
                 Console.WriteLine(await Narrator(Log,turn));
                 turn++;
             }
         }
-        public async Task Load(Task task)
+        public async Task Load(Task task, string message, string final)
         {
             int dotCount = 0;
             while (true)
             {
                 if(task.IsCompleted)
                 {
+                    Console.Write("\r   \r");
+                    Console.Write($"{final}\n");
+
                     return;
                 }
                 if (dotCount == 3)
@@ -475,13 +568,24 @@ namespace Gayme
                     Console.Write("\r   \r"); // clear the line after 3 dots
                     dotCount = 0;
                 }
-                else
+                else if(dotCount == 0)
                 {
-                    Console.Write(".");
+                    Console.Write($"{message}.");
+                    dotCount++;
+                }
+                else if (dotCount == 1)
+                {
+                    Console.Write($"{message}..");
+                    dotCount++;
+                }
+                else if (dotCount == 2)
+                {
+                    Console.Write($"{message}...");
                     dotCount++;
                 }
 
                 await Task.Delay(1000);
+                Console.Write("\r   \r");
             }
         }
         public async Task<(Character,string)> Bexecution(string Operation_name, Character char1, Character char2, Dictionary<string, Operations> operations)
@@ -491,7 +595,7 @@ namespace Gayme
             var operation = new Operations
             {
                 Name = operationTemplate.Name,
-                operation = operationTemplate.operation,
+                Operation = operationTemplate.Operation,
                 Description = operationTemplate.Description,
                 Values = new List<Value>(), // Initialize the values
                 Target = operationTemplate.Target,
@@ -504,7 +608,7 @@ namespace Gayme
             Regex regex = new Regex(@"\{.*?\}");
 
             // Matches variable parts in operation (stuff inside {})
-            var matches = regex.Matches(operation.operation);
+            var matches = regex.Matches(operation.Operation);
             foreach (Match match in matches)
             {
                 var splitProp = match.Value.Trim('{', '}').Split('.');
@@ -518,7 +622,7 @@ namespace Gayme
                 operation.Values.Add(new Value { Name = splitProp[1], Float = propertyValue });
             }
 
-            operation.operation = regex.Replace(operation.operation, "");
+            operation.Operation = regex.Replace(operation.Operation, "");
             /*  for(int i = 0; i < operation.Values.Count;i++)
               {
                   Console.WriteLine(operation.Values[i].Float);
@@ -580,18 +684,12 @@ namespace Gayme
             logString = "\n" + logString;
             return (target, logString);
         }
-        public static string GetValues(JArray jsonArray,string Object,string value)
-        {
-            JToken objectA = jsonArray.FirstOrDefault(jt => jt["Object"].ToString() == Object);
-            string valueA = objectA?[value].ToString();
-            return valueA;
-        }
         public async Task<string> Narrator(string Log,int turn)
         {
             Procesed_Prompt = $"Labels:\nNarration(narration)\nTask: You are the narrator, your goal is to summarize an action / actions performed by characters in a situation. Use narration to give a short and flavorful descriptions of actions characters in the log string have taken. Narrate for the current turn, but also base a bit of your narration on what has previously happened.\nThe current turn is: {turn}. Log:\n{Log}";
             Console.WriteLine(Procesed_Prompt);
-            Response = await ai.Get_response(Procesed_Prompt, System, menu);
-            string narration = GetValues(Response,"Narration","narration");
+            Response = await ai.Get_response(Procesed_Prompt, system, menu,200);
+            string narration = GetValue(Response,"Narration","narration");
             return narration;
         }
         public async Task AiTurn(List<Character> player, List<Character> enemy, Dictionary<string, Operations> operations,bool players)
@@ -615,15 +713,15 @@ namespace Gayme
                     {
                         Procesed_Prompt += $"Ally: {d.Name}.\n";
                     }
-                    Response = await ai.Get_response(Procesed_Prompt, System, menu);
-                    string uh = GetValues(Response, "Action", "name");
+                    Response = await ai.Get_response(Procesed_Prompt, system, menu,400);
+                    string uh = GetValue(Response, "Action", "name");
                     Console.WriteLine(Response);
                     if (operations[uh].Ally == "False")
                     {
                         for (int i = 0; i < player.Count; i++)
                         {
 
-                            if (player[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
+                            if (player[i].Name.ToLower() == GetValue(Response, "Action", "target").ToLower())
                             {
                                 foreach (Operations ope in operations.Values)
                                 {
@@ -639,9 +737,9 @@ namespace Gayme
                     }
                     for (int i = 0; i < enemy.Count; i++)
                     {
-                        if ((operations[uh].Ally == "True" && GetValues(Response, "Action", "target").ToLower() != "player")||(GetValues(Response, "Action", "target").ToLower() == "player" && operations[uh].Self.ToLower() == "true"))
+                        if ((operations[uh].Ally == "True" && GetValue(Response, "Action", "target").ToLower() != "player")||(GetValue(Response, "Action", "target").ToLower() == "player" && operations[uh].Self.ToLower() == "true"))
                         {
-                            if (enemy[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower()|| GetValues(Response, "Action", "target").ToLower() == "player")
+                            if (enemy[i].Name.ToLower() == GetValue(Response, "Action", "target").ToLower()|| GetValue(Response, "Action", "target").ToLower() == "player")
                             {
                                 foreach (Operations ope in operations.Values)
                                 {
@@ -715,13 +813,13 @@ namespace Gayme
                         Procesed_Prompt += $"Ally: {d.Name}.\n";
                     }
                     Procesed_Prompt += "\n\nPlayers action: " + Prompt;
-                    Response = await ai.Get_response(Procesed_Prompt, System, menu);
-                    string uh = GetValues(Response, "Action", "name");
+                    Response = await ai.Get_response(Procesed_Prompt, system, menu,400);
+                    string uh = GetValue(Response, "Action", "name");
                     for (int i = 0; i < enemy.Count; i++)
                     {
                         if (operations[uh].Ally == "False")
                         {
-                            if (enemy[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
+                            if (enemy[i].Name.ToLower() == GetValue(Response, "Action", "target").ToLower())
                             {
                                 foreach (Operations ope in operations.Values)
                                 {
@@ -737,9 +835,9 @@ namespace Gayme
                     }
                     for (int i = 0; i < player.Count; i++)
                     {
-                        if (operations[uh].Ally == "True" && GetValues(Response, "Action", "target").ToLower() != "player")
+                        if (operations[uh].Ally == "True" && GetValue(Response, "Action", "target").ToLower() != "player")
                         {
-                            if (player[i].Name.ToLower() == GetValues(Response, "Action", "target").ToLower())
+                            if (player[i].Name.ToLower() == GetValue(Response, "Action", "target").ToLower())
                             {
                                 foreach (Operations ope in operations.Values)
                                 {
@@ -754,7 +852,7 @@ namespace Gayme
                         }
                         else
                         {
-                            if (GetValues(Response, "Action", "target").ToLower() == "player")
+                            if (GetValue(Response, "Action", "target").ToLower() == "player")
                             {
                                 foreach (Operations ope in operations.Values)
                                 {
@@ -894,13 +992,14 @@ namespace Gayme
         {
             GPT = "gpt-4";
         }
-        public async Task<JArray> Get_response(string prompt, string system, Menu menu)
+        public async Task<JArray> Get_response(string prompt, string system, Menu menu,int tokens)
         {
             while (true)
             {
                 if (GPT == "gpt-4" || GPT == "gpt-3.5-turbo")
                 {
-                    Process = await OpenAI_GPT.CallGPTGeneric(GPT, system, prompt);
+                    Process = await OpenAI_GPT.CallGPTGeneric(GPT, system, prompt,tokens);
+                    Console.WriteLine(Process);
                     Response = JArray.Parse(Process.ToString());
                     return Response;
                 }
@@ -908,7 +1007,7 @@ namespace Gayme
                 {
                     Local_GPT local_GPT = new Local_GPT();
                     prompt = "This is your system message, it is a message directing you on how you should act and what you should do, above all else that will be said later. You have to follow the system message no matter what. The system message will end like this: (end of system message). The system message:[\n\n" + system + "\n\n](end of system message)\n\n\n" + prompt+"\noutput: ";
-                    Process = await local_GPT.Run(prompt);
+                    Process = await local_GPT.Run(prompt,tokens);
                     Response = JArray.Parse(Process.ToString());
                     return Response;
                 }
@@ -922,14 +1021,14 @@ namespace Gayme
         private static readonly string HOST = "localhost:5005";
         private static readonly string URI = $"ws://{HOST}/api/v1/stream";
 
-        public async Task<string> Run(string prompt)
+        public async Task<string> Run(string prompt,int tokens)
         {
             Console.WriteLine(prompt);
             var httpClient = new HttpClient();
             var content = new
             {
                 prompt = prompt,
-                max_new_tokens = 400,
+                max_new_tokens = tokens,
                 auto_max_new_tokens = false,
                 preset = "None",
                 do_sample = true,
@@ -1023,12 +1122,12 @@ namespace Gayme
 
             return responseBody;
         }
-        public static async Task<JToken> CallGPTGeneric(string gpt, string system, string prompt)
+        public static async Task<JToken> CallGPTGeneric(string gpt, string system, string prompt,int tokens)
         {
             var gptAgent = new OpenAI_GPT();
         v:
             string Prompt = $"{prompt}";
-            var Response = await gptAgent.SendPrompt(Prompt, gpt, 0.7, $"{system}", 500);
+            var Response = await gptAgent.SendPrompt(Prompt, gpt, 0.7, $"{system}", tokens);
             if (Response == null) { Console.WriteLine($"Didn't recieve a response from GPT, server is probably overloaded, try again ? y\\n"); string asl = Console.ReadLine()!; if (asl == "y") { goto v; } return "no command gpt response"; }
             JObject JsonResponse = JObject.Parse(Response);
             if (JsonResponse.SelectToken("$.choices[0].message.content") == null) { goto v; }
