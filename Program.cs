@@ -22,22 +22,27 @@ namespace Gayme
         public TurnCombat combat;
         public AIHandler ai = new AIHandler();
         public List<Basic> basic = new List<Basic>();
-        Menu menu = new Menu();
+        public static string GPT;
+        public Menu menu = new Menu();
         string Log;
         public async Task Start()
         {
-            Dictionary<string, Operation> operations = await Generation.OperationGeneration(5,"melee combat",menu.GPT,system,menu);
+            GPT = menu.GPT;
+            Dictionary<string, Operation> operations = await Generation.OperationGeneration(2,"melee combat",GPT,system,menu);
+            foreach(var operation in operations) { Console.WriteLine(operation.Value.Name);Console.WriteLine(operation.Value.Ally); }
             if (param == "combat")
             {
                 Character player = new Character { Name = "Moo", Health = 20};
+                Character ally = new Character { Name = "Mark", Health = 5 };
                 Character enemy = new Character { Name = "Glue", Attack = 4, Defence = 1 };
                 Character smone = new Character { Name = "Jack", Attack = 1, Defence = 3 };
                 List<Character> players = new List<Character>();
                 List<Character> enemies = new List<Character>();
                 players.Add(player);
+                players.Add(ally);
                 enemies.Add(enemy);
                 enemies.Add(smone);
-                await TurnCombat.Fight(players, enemies, operations,menu.GPT,system,menu,Log);
+                await TurnCombat.Fight(players, enemies, operations,GPT,system,menu,Log);
             }
         }
     }

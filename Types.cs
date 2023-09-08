@@ -1,6 +1,7 @@
 using Newtonsoft.Json.Linq;
 using System.Linq.Dynamic.Core;
 using System.Reflection;
+using System.Text.RegularExpressions;
 
 namespace Types
 {
@@ -94,7 +95,6 @@ namespace Types
             List<Value> values = operations.Values;
             var valueDictionary = new Dictionary<string, object>();
             string operation = operations.Operatio;
-
             foreach (var value in values)
             {
                 valueDictionary.Add(value.Name, value.Float);
@@ -105,6 +105,8 @@ namespace Types
             Console.WriteLine($"Parameters: {string.Join(", ", valueDictionary.Keys)}");
             */
             var parameter = valueDictionary.Keys.Select(k => System.Linq.Expressions.Expression.Parameter(typeof(float), k)).ToArray();
+            Console.WriteLine(parameter);
+            Console.WriteLine(operation);
             var expression = DynamicExpressionParser.ParseLambda(ParsingConfig.Default, parameter, null, operation);
             var compiled = expression.Compile();
             var result = compiled.DynamicInvoke(valueDictionary.Values.ToArray());
@@ -114,6 +116,103 @@ namespace Types
         public static Operation GetOperation(Dictionary<string, Operation> operations, string name)
         {
             return operations[name];
+        }
+        public static async Task<(Character, string)> Bexecution(string Operation_name, Character char1, Character char2, Dictionary<string, Operation> operations)
+        {
+            // Create a new operation based on the template from the dictionary
+            var operationTemplate = GetOperation(operations, Operation_name);
+            var operation = new Operation
+            {
+                Name = operationTemplate.Name,
+                Operatio = operationTemplate.Operatio,
+                Description = operationTemplate.Description,
+                Values = new List<Value>(), // Initialize the values
+                Target = operationTemplate.Target,
+                TargetName = operationTemplate.TargetName,
+                Log = operationTemplate.Log
+
+            };
+
+            operation.Values = new List<Value>();
+            Regex regex = new Regex(@"\{.*?\}");
+
+            // Matches variable parts in operation (stuff inside {})
+            var matches = regex.Matches(operation.Operatio);
+            foreach (Match match in matches)
+            {
+                var splitProp = match.Value.Trim('{', '}').Split('.');
+                var propertyValue = 0f;
+
+                if (splitProp[0] == "Char1")
+                    propertyValue = (float)typeof(Character).GetProperty(splitProp[1]).GetValue(char1);
+                else if (splitProp[0] == "Char2")
+                    propertyValue = (float)typeof(Character).GetProperty(splitProp[1]).GetValue(char2);
+
+                operation.Values.Add(new Value { Name = splitProp[1], Float = propertyValue });
+            }
+
+            operation.Operatio = regex.Replace(operation.Operatio, "");
+            /*  for(int i = 0; i < operation.Values.Count;i++)
+              {
+                  Console.WriteLine(operation.Values[i].Float);
+                  Console.WriteLine(operation.Values[i].Name);
+              }*/
+            Console.WriteLine(operation.Operatio);
+            float result = CalculateExpression(operation);
+            Character target;
+            if (operation.TargetName == "Char1")
+            {
+                target = char1;
+            }
+            else
+            {
+                target = char2;
+            }
+            PropertyInfo propertyInfo = target.GetType().GetProperty(operation.Target);
+            propertyInfo.SetValue(target, result);
+
+            string logString = operation.Log;
+
+            logString = regex.Replace(logString, match =>
+            {
+                var splitProp = match.Value.Trim('{', '}').Split('.');
+                var propertyName = splitProp[1];
+                var propertyValue = "";
+
+                if (splitProp[0] == "Char1" && char1.GetType().GetProperty(propertyName) != null)
+                    propertyValue = char1.GetType().GetProperty(propertyName).GetValue(char1).ToString();
+                else if (splitProp[0] == "Char2" && char2.GetType().GetProperty(propertyName) != null)
+                    propertyValue = char2.GetType().GetProperty(propertyName).GetValue(char2).ToString();
+
+                return string.IsNullOrEmpty(propertyValue) ? match.Value : propertyValue; // Keep original match if no value
+            });
+
+            matches = regex.Matches(logString);
+
+            foreach (Match match in matches)
+            {
+                // Substitute variables with their values
+                var expressionString = match.Value.Trim('{', '}');
+                var expression = new NCalc.Expression(expressionString);
+                expression.Parameters["Char1"] = char1;
+                expression.Parameters["Char2"] = char2;
+                expression.Parameters["result"] = result;
+
+                var evalResult = "";
+                try
+                {
+                    evalResult = expression.Evaluate().ToString();
+                }
+                catch (Exception ex)
+                {
+                    continue; // Or log this exception that evaluation failed
+                }
+
+                logString = logString.Replace(match.Value, evalResult);
+            }
+
+            logString = "\n" + logString;
+            return (target, logString);
         }
     }
     public class Basic
@@ -454,6 +553,7 @@ namespace Types
         public List<Properties> Properties { get; set; }
         public List<Item> Inventory { get; set; }
         public List<Item> Equipment { get; set; }
+        public int NumOfProperties { get; set; }
         public Character()
         {
             Health = 12;
@@ -463,6 +563,7 @@ namespace Types
             Properties = new List<Properties>();
             Inventory = new List<Item>();
             Equipment = new List<Item>();
+            NumOfProperties = 4;
         }
     }
 }

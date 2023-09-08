@@ -5,6 +5,8 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using Types;
 using Generic;
+using System.Reflection;
+using System;
 
 namespace AI
 {
@@ -43,40 +45,25 @@ namespace AI
     }
     public class Generation
     {
-        public static async Task<Dictionary<string, Operation>> OperationGeneration(int n, string theme,string GPT,string System,Menu Menu)
+        public static async Task<Dictionary<string, Operation>> OperationGeneration(int n, string theme, string GPT, string System, Menu Menu)
         {
-            string prompt = $"Labels: Operation(Name,Description,Operation,Target,TargetName,Log,Ally,Self) Task: Create {n} different operations format suitable for a game context, using this theme: theme {theme}. The Operation label comes with the following properties, values, and usage instructions:\r\n\r\n* Name: (string) This is the name of the operation. Any unique identifier you prefer. Example: 'attack or heal_self'.\r\n* Description: (string) This describes what the operation does in the game. Make sure its description matches its name. Example: 'Uses attack stat to remove health'.\r\n* operation: (delegate/lambda) It's a function that takes the character and a list of values to describe how the operation is performed. The entry should code in textual format. Example: 'Health{{Char1.Health}} - (Attack{{Char1.Attack}} - Defence{{Char2.Defence}})'.\r\n* Target: (string) This specifies what the operation targets in the game. It could target 'Health', 'Mana', 'Experience' etc. Example: 'Health'.\r\n* TargetName: (string) This is the name of the target character which the operation is applied on. Either Char1 or Char2. Char1 is the executor of the task, while Char2 is the recipient\r\n* Log: (string) This log is for logging the result of the operation in-game. It usually uses the Name properties of characters involved. Example: '{{Char1.Name}} attacked {{Char2.Name}}!'\r\n* Ally: (string) This determines if the operation can be used on allies. Acceptable entries are 'True' or 'False'. Example: 'False'.\r\n* Self: (string) This determines if the operation can be applied on self. Acceptable entries are 'True' or 'False'. Example: 'False'. The generated operations should be distinct.";
-            JArray response = await AIHandler.Get_response(prompt, System, Menu, 800,GPT);
-            Dictionary<string, Dictionary<string, List<string>>> respon = new Dictionary<string, Dictionary<string, List<string>>>();
-            List<Dictionary<string, List<string>>> objects = new List<Dictionary<string, List<string>>>();
-            List<string> values = new List<string> { "Name", "Description", "Operation", "Target", "TargetName", "Log", "Ally", "Self" };
-            Dictionary<string, List<string>> a = new Dictionary<string, List<string>>();
-            a.Add("Operation", values);
-            objects.Add(a);
-            respon = Json.GetValuesGroup(response, objects);
-            Dictionary<string, Operation> result = new Dictionary<string, Operation>();
+            string prompt = $"Labels: Operation(Name,Description,Operatio,Target,TargetName,Log,Ally,Self) Task: Create {n} different operations format suitable for a game context, using this theme: theme {theme}. The Operation label comes with the following properties, values, and usage instructions:\r\n\r\n* Name: (string) This is the name of the operation. Any unique identifier you prefer. Example: 'attack or heal_self'.\r\n* Description: (string) This describes what the operation does in the game. Make sure its description matches its name. Example: 'Uses attack stat to remove health'.\r\n* Operatio (or the operation, but you have to refer to it as the Operatio): (delegate/lambda) It's a function that takes the character and a list of values to describe how the operation is performed. The entry should code in textual format. Example: 'Health{{Char1.Health}} - (Attack{{Char1.Attack}} - Defence{{Char2.Defence}})'.\r\n* Target: (string) This specifies what the operation targets in the game. It could target 'Health', 'Mana', 'Experience' etc. Example: 'Health'.\r\n* TargetName: (string) This is the name of the target character which the operation is applied on. Either Char1 or Char2. Char1 is the executor of the task, while Char2 is the recipient\r\n* Log: (string) This log is for logging the result of the operation in-game. It usually uses the Name properties of characters involved. Example: '{{Char1.Name}} attacked {{Char2.Name}}!'\r\n* Ally: (string) This determines if the operation can be used on allies. Acceptable entries are 'True' or 'False'. Example: 'False'.\r\n* Self: (string) This determines if the operation only works on the caster. Acceptable entries are 'True' or 'False'. Example: 'False'. The generated operations should be distinct.";
+            var type = new Character().GetType();
+            var properties = type.GetProperties();
+            prompt += "\vAvaliable properties for use in Log,Operation and Target";
 
-            foreach (string key in respon.Keys)
+            for (int i = 0; i < new Character().NumOfProperties; i++)
             {
-                Operation operation = new Operation();
-                foreach (string valueKey in respon[key].Keys)
-                {
-                    switch (valueKey)
-                    {
-                        case "Name": operation.Name = respon[key][valueKey].FirstOrDefault(); break;
-                        case "Description": operation.Description = respon[key][valueKey].FirstOrDefault(); break;
-                        case "Operation": operation.Operatio = respon[key][valueKey].FirstOrDefault(); break;
-                        case "Target": operation.Target = respon[key][valueKey].FirstOrDefault(); break;
-                        case "TargetName": operation.TargetName = respon[key][valueKey].FirstOrDefault(); break;
-                        case "Log": operation.Log = respon[key][valueKey].FirstOrDefault(); break;
-                        case "Ally": operation.Ally = respon[key][valueKey].FirstOrDefault(); break;
-                        case "Self": operation.Self = respon[key][valueKey].FirstOrDefault(); break;
-                    }
-                }
-                result[key] = operation;
+                prompt += $"{properties[i].Name}\n";
             }
 
-            return result;
+            JArray response = await AIHandler.Get_response(prompt, System, Menu, 800, GPT);
+
+            var operations = response
+                .Select(jt => JsonConvert.DeserializeObject<Operation>(jt.ToString()))
+                .ToDictionary(op => op.Name);
+
+            return operations;
         }
     }
     public class Local_GPT
