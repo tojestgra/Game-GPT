@@ -117,7 +117,7 @@ namespace Types
         {
             return operations[name];
         }
-        public static async Task<(Character, string)> Bexecution(string Operation_name, Character char1, Character char2, Dictionary<string, Operation> operations)
+        public static (Character, string) Bexecution(string Operation_name, Character char1, Character char2, Dictionary<string, Operation> operations)
         {
             // Create a new operation based on the template from the dictionary
             var operationTemplate = GetOperation(operations, Operation_name);
@@ -558,8 +558,8 @@ namespace Types
         {
             Health = 12;
             Name = "Foo";
-            Attack = 1;
-            Defence = 1;
+            Attack = 5;
+            Defence = 2;
             Properties = new List<Properties>();
             Inventory = new List<Item>();
             Equipment = new List<Item>();

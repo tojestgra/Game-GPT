@@ -13,6 +13,7 @@ namespace Combat
         public static async Task Fight(List<Character> player, List<Character> enemy, Dictionary<string, Operation> operations,string GPT,string system,Menu menu,string Log)
         {
             int turn = 1;
+            string log;
             string enemy_names = "";
             for (int i = 0; i < enemy.Count - 1; i++)
             {
@@ -23,57 +24,50 @@ namespace Combat
             while (true)
             {
                 Log += $"--Turn: {turn}--\n";
-                var pl = await Load(PlayerTurn(player, enemy, operations, enemy_names,GPT,system,menu), "Thinking", "Thinking finished !");
-                player = pl.Item1;
-                enemy = pl.Item2;
-                Log += pl.Item3+'\n';
-                Console.WriteLine(pl.Item3);
-                var all = await Load(AiTurn(enemy, player, operations, true,GPT,system,menu), "Thinking", "Thinking finished !");
-                player = all.Item2;
-                enemy = all.Item1;
-                Log += all.Item3 + '\n';
-                Console.WriteLine(all.Item3);
-                var ene = await Load(AiTurn(player, enemy, operations, false, GPT, system, menu), "Thinking", "Thinking finished !");
-                player = ene.Item1;
-                enemy = ene.Item2;
-                Log += ene.Item3 + '\n';
-                Console.WriteLine(ene.Item3);
-                Log += "\n";
-                Console.WriteLine(await Narrator(turn,GPT,system,menu, Log));
+                (player,enemy,log) = await Load(PlayerTurn(player, enemy, operations, enemy_names,GPT,system,menu), "wThinking", "wThinking finished !");
+                Log += log+'\n';
+                DebugInfo(enemy, player, Log);
+                (enemy,player,log) = await Load(AllyTurn(enemy, player, operations,GPT,system,menu), "Thinking", "Thinking finished !");
+                Log += log + '\n';
+                DebugInfo(enemy, player, Log);
+                (player,enemy,log) = await Load(EnemyTurn(player, enemy, operations,GPT, system, menu), "BThinking", "BThinking finished !");
+                Log += log + '\n';
+                DebugInfo(enemy, player,Log);
+                //Console.WriteLine(await Narrator(turn,GPT,system,menu, Log));
                 turn++;
             }
         }
         public static async Task<(List<Character>, List<Character>, string)> Load(Task<(List<Character>, List<Character>, string)> task, string message, string final)
         {
             int dotCount = 0;
+
+            // Pre-calculate the padding length to be used to clear the console line.
+            int padLength = Math.Max(message.Length + 3, final.Length); // +3 is for adding '...'
+            string padString = new string(' ', padLength);
+
+            void WriteMessageAndDots()
+            {
+                Console.Write('\r' + message + new string('.', dotCount) + padString);
+            }
+
             while (!task.IsCompleted)
             {
                 if (dotCount == 3)
                 {
-                    Console.Write("\r   \r"); // clear the line after 3 dots
                     dotCount = 0;
                 }
-                else if (dotCount == 0)
+                else
                 {
-                    Console.Write($"{message}.");
-                    dotCount++;
-                }
-                else if (dotCount == 1)
-                {
-                    Console.Write($"{message}..");
-                    dotCount++;
-                }
-                else if (dotCount == 2)
-                {
-                    Console.Write($"{message}...");
                     dotCount++;
                 }
 
+                WriteMessageAndDots();
+
                 await Task.Delay(1000);
-                Console.Write("\r   \r");
             }
-            Console.Write("\r   \r");
-            Console.Write($"{final}\n");
+
+            Console.Write('\r' + padString);    // clear the last progress line
+            Console.WriteLine(final);
 
             return await task;  // return the result of the completed task
         }
@@ -86,17 +80,18 @@ namespace Combat
             string narration = Json.GetValue(Response, "Narration", "narration");
             return narration;
         }
-        public static async Task<(List<Character>, List<Character>, string)> AiTurn(List<Character> player, List<Character> enemy, Dictionary<string, Operation> operations, bool players, string GPT, string system, Menu menu)
+        public static async Task<(List<Character>, List<Character>, string)> AllyTurn(List<Character> player, List<Character> enemy, Dictionary<string, Operation> operations,string GPT, string system, Menu menu)
         {
             JArray Response;
             string Logs = "";
             List<Character> playerList = new List<Character>(enemy);
-            if (players == true && enemy.Count == 1) return (player, enemy, Logs);
-            else if (players == true)
+            if (enemy.Count == 1) return (player, enemy, Logs);
+            else
             {
                 Console.WriteLine("allied");
                 for (int e = 1; e < playerList.Count; e++)
                 {
+                    bool finished = false;
                     string ProcessedPrompt = $"Labels:\r\nReasoning(advantages,disadvantages,course_of_action)\r\nAction(Name,Target)\r\n\r\nTask: You are playing the role of {playerList[e].Name}. Your objective is to make prudent decisions based on the current game dynamics, prioritizing the team's interests and predicting possible moves from your allies and adversaries. Engage in a thorough analysis of potential actions by comparing their descriptions with your character's statistics to determine the best route. Use the label 'reasoning' along with its elements - 'advantages', 'disadvantages', and 'course of action' - to methodically evaluate all possibilities and ascertain the optimal course of action. This will involve weighing the merits of your character's stats against the disadvantages.\r\n\r\nThe 'name' label will denote your chosen action, whereas the 'target' label will indicate the entity at the receiving end of your action. Should you decide to direct the action towards yourself, utilize 'player' for the 'target'. Try to keep your reasoning short and to the point. You are only allowed to use one action, so choose carefully. Your available options are outlined below:\n";
                     foreach (Operation d in operations.Values)
                     {
@@ -116,12 +111,13 @@ namespace Combat
                     }
                     Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400, GPT);
                     string uh = Json.GetValue(Response, "Action", "Name");
-                    Console.WriteLine(ProcessedPrompt);
+                    //Console.WriteLine(ProcessedPrompt);
                     if (operations[uh].Ally == "False")
                     {
                         Console.WriteLine("ghou");
                         for (int i = 0; i < player.Count; i++)
                         {
+                            Console.WriteLine(player[i].Health);
                             Console.WriteLine("bdfg");
                             if (player[i].Name == Json.GetValue(Response, "Action", "Target"))
                             {
@@ -129,117 +125,169 @@ namespace Combat
                                 foreach (Operation ope in operations.Values)
                                 {
                                     Console.WriteLine("das");
+                                    if (finished)
+                                    {
+                                        break;
+                                    }
                                     if (ope.Name == uh)
                                     {
-                                        var c = await Operation.Bexecution(uh, playerList[e], player[i], operations);
-                                        player[i] = c.Item1;
-                                        Console.WriteLine("gay");
-                                        Console.WriteLine(c.Item2);
-                                        Console.WriteLine("gaye");
-                                        Logs += c.Item2;
+                                        (player[i],string log) = Operation.Bexecution(uh, playerList[e], player[i], operations);
+                                        Logs += log;
+                                        finished = true;
                                     }
                                 }
                             }
                         }
                     }
-                    for (int i = 0; i < playerList.Count; i++)
+                    for (int i = 1; i < playerList.Count; i++)
                     {
-                        if ((operations[uh].Ally == "True" && Json.GetValue(Response, "Action", "Target") != "player") || (Json.GetValue(Response, "Action", "Target") == "player" && operations[uh].Self == "True"))
+                        Console.WriteLine(playerList[i].Health);
+                        if (operations[uh].Ally == "True" && Json.GetValue(Response, "Action", "Target") != "player")
                         {
-                            if (playerList[i].Name == Json.GetValue(Response, "Action", "Target") || Json.GetValue(Response, "Action", "Target") == "player")
+                            if (playerList[i].Name == Json.GetValue(Response, "Action", "Target"))
                             {
                                 foreach (Operation ope in operations.Values)
                                 {
+                                    Console.WriteLine(ope.Name);
+                                    Console.WriteLine(uh);
+                                    if (finished)
+                                    {
+                                        break;
+                                    }
                                     if (ope.Name == uh)
                                     {
-                                        var c = await Operation.Bexecution(uh, playerList[e], playerList[i], operations);
-                                        playerList[i] = c.Item1;
-                                        Console.WriteLine("er");
-                                        Console.WriteLine(c.Item2);
-                                        Console.WriteLine("err");
-                                        Logs += c.Item2;
+                                        ( playerList[i],string log ) = Operation.Bexecution(uh, playerList[e], playerList[i], operations);
+                                        Logs += log;
+                                        finished = true;
                                     }
+                                }
+                            }
+                        }
+                        else if (Json.GetValue(Response, "Action", "Target") == "player" && operations[uh].Self == "True")
+                        {
+                            foreach (Operation ope in operations.Values)
+                            {
+                                if (finished)
+                                {
+                                    break;
+                                }
+                                if (ope.Name.ToLower() == uh.ToLower())
+                                {
+                                    Console.WriteLine(Json.GetValue(Response, "Action", "Target"));
+                                    Console.WriteLine(playerList[i].Name);
+                                    Console.WriteLine(playerList[e].Name);
+                                    (playerList[e], string log) = Operation.Bexecution(uh, playerList[e], playerList[e], operations);
+                                    Logs += log;
+                                    finished = true;
                                 }
                             }
                         }
                     }
                 }
+                Console.WriteLine("ended");
                 return (player, playerList, Logs);
             }
-            else
+        }
+        public static async Task<(List<Character>, List<Character>, string)> EnemyTurn(List<Character> player, List<Character> enemy, Dictionary<string, Operation> operations,string GPT, string system, Menu menu)
+        {
+            string Logs = "";
+            JArray Response;
+            for (int e = 0; e < enemy.Count; e++)
             {
-                for (int e = 0; e < enemy.Count; e++)
+                bool finished = false;
+                Console.WriteLine("enemied");
+                string ProcessedPrompt = $"Labels:\r\nReasoning(advantages,disadvantages,course_of_action)\r\nAction(Name,Target)\r\n\r\nTask: You are playing the role of {enemy[e].Name}. Your objective is to make prudent decisions based on the current game dynamics, prioritizing the team's interests and predicting possible moves from your allies and adversaries. Engage in a thorough analysis of potential actions by comparing their descriptions with your character's statistics to determine the best route. Use the label 'reasoning' along with its elements - 'advantages', 'disadvantages', and 'course of action' - to methodically evaluate all possibilities and ascertain the optimal course of action. This will involve weighing the merits of your character's stats against the disadvantages.\r\n\r\nThe 'name' label will denote your chosen action, whereas the 'target' label will indicate the entity at the receiving end of your action. Should you decide to direct the action towards yourself, utilize 'player' for the 'target'. Try to keep your reasoning short and to the point. You are only allowed to use one action, so choose carefully. Your available options are outlined below:\n";
+                foreach (Operation d in operations.Values)
                 {
-                    Console.WriteLine("enemied");
-                    string ProcessedPrompt = $"Labels:\r\nReasoning(advantages,disadvantages,course_of_action)\r\nAction(Name,Target)\r\n\r\nTask: You are playing the role of {enemy[e].Name}. Your objective is to make prudent decisions based on the current game dynamics, prioritizing the team's interests and predicting possible moves from your allies and adversaries. Engage in a thorough analysis of potential actions by comparing their descriptions with your character's statistics to determine the best route. Use the label 'reasoning' along with its elements - 'advantages', 'disadvantages', and 'course of action' - to methodically evaluate all possibilities and ascertain the optimal course of action. This will involve weighing the merits of your character's stats against the disadvantages.\r\n\r\nThe 'name' label will denote your chosen action, whereas the 'target' label will indicate the entity at the receiving end of your action. Should you decide to direct the action towards yourself, utilize 'player' for the 'target'. Try to keep your reasoning short and to the point. You are only allowed to use one action, so choose carefully. Your available options are outlined below:\n";
-                    foreach (Operation d in operations.Values)
+                    ProcessedPrompt += $"Action name: {d.Name}. Action description: {d.Description}. Used on friendly: {d.Ally}. Used on self: {d.Self}.\n";
+                }
+                ProcessedPrompt += "Enemies:\n\n";
+                foreach (Character d in player)
+                {
+                    ProcessedPrompt += $"Enemy: {d.Name}.\n";
+                }
+                ProcessedPrompt += "\nAllies:\n\n";
+                List<Character> allies = new List<Character>(enemy);
+                allies.Remove(enemy[e]);
+                foreach (Character c in allies)
+                {
+                    ProcessedPrompt += $"Ally: {c.Name}.\n";
+                }
+                Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400, GPT);
+                string uh = Json.GetValue(Response, "Action", "Name");
+                Console.WriteLine(ProcessedPrompt);
+                if (operations[uh].Ally == "False")
+                {
+                    Console.WriteLine("ghou");
+                    for (int i = 0; i < player.Count; i++)
                     {
-                        ProcessedPrompt += $"Action name: {d.Name}. Action description: {d.Description}. Used on friendly: {d.Ally}. Used on self: {d.Self}.\n";
-                    }
-                    ProcessedPrompt += "Enemies:\n\n";
-                    foreach (Character d in player)
-                    {
-                        ProcessedPrompt += $"Enemy: {d.Name}.\n";
-                    }
-                    ProcessedPrompt += "\nAllies:\n\n";
-                    List<Character> allies = new List<Character>(enemy);
-                    allies.Remove(enemy[e]);
-                    foreach (Character c in allies)
-                    {
-                        ProcessedPrompt += $"Ally: {c.Name}.\n";
-                    }
-                    Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400, GPT);
-                    string uh = Json.GetValue(Response, "Action", "Name");
-                    Console.WriteLine(ProcessedPrompt);
-                    if (operations[uh].Ally == "False")
-                    {
-                        Console.WriteLine("ghou");
-                        for (int i = 0; i < player.Count; i++)
+                        Console.WriteLine("bdfg");
+                        if (player[i].Name == Json.GetValue(Response, "Action", "Target"))
                         {
-                            Console.WriteLine("bdfg");
-                            if (player[i].Name == Json.GetValue(Response, "Action", "Target"))
+                            Console.WriteLine("ee");
+                            foreach (Operation ope in operations.Values)
                             {
-                                Console.WriteLine("ee");
-                                foreach (Operation ope in operations.Values)
+                                if (finished)
                                 {
-                                    Console.WriteLine("das");
-                                    if (ope.Name == uh)
-                                    {
-                                        var c = await Operation.Bexecution(uh, enemy[e], player[i], operations);
-                                        player[i] = c.Item1;
-                                        Console.WriteLine("gay");
-                                        Console.WriteLine(c.Item2);
-                                        Console.WriteLine("gaye");
-                                        Logs += c.Item2;
-                                    }
+                                    break;
                                 }
-                            }
-                        }
-                    }
-                    for (int i = 0; i < enemy.Count; i++)
-                    {
-                        if ((operations[uh].Ally == "True" && Json.GetValue(Response, "Action", "Target") != "player") || (Json.GetValue(Response, "Action", "Target") == "player" && operations[uh].Self == "True"))
-                        {
-                            if (enemy[i].Name == Json.GetValue(Response, "Action", "Target") || Json.GetValue(Response, "Action", "Target") == "player")
-                            {
-                                foreach (Operation ope in operations.Values)
+                                Console.WriteLine("das");
+                                if (ope.Name == uh)
                                 {
-                                    if (ope.Name == uh)
-                                    {
-                                        var c = await Operation.Bexecution(uh, enemy[e], enemy[i], operations);
-                                        enemy[i] = c.Item1;
-                                        Console.WriteLine("er");
-                                        Console.WriteLine(c.Item2);
-                                        Console.WriteLine("err");
-                                        Logs += c.Item2;
-                                    }
+                                    (player[i],string log) = Operation.Bexecution(uh, enemy[e], player[i], operations);
+                                    Logs += log;
+                                    finished = true;
                                 }
                             }
                         }
                     }
                 }
-                return (player, enemy, Logs);
+                for (int i = 0; i < enemy.Count; i++)
+                {
+                    if (operations[uh].Ally == "True" && Json.GetValue(Response, "Action", "Target") != "player")
+                    {
+                        if (enemy[i].Name == Json.GetValue(Response, "Action", "Target"))
+                        {
+                            foreach (Operation ope in operations.Values)
+                            {
+                                if(finished)
+                                {
+                                    break;
+                                }
+                                if (ope.Name.ToLower() == uh.ToLower())
+                                {
+                                    Console.WriteLine(Json.GetValue(Response, "Action", "Target"));
+                                    Console.WriteLine(enemy[i].Name);
+                                    Console.WriteLine(enemy[e].Name);
+                                    (enemy[i], string log) = Operation.Bexecution(uh, enemy[e], enemy[i], operations);
+                                    Logs += log;
+                                    finished = true;
+                                }
+                            }
+                        }
+                    }
+                    else if(Json.GetValue(Response, "Action", "Target") == "player" && operations[uh].Self == "True")
+                    {
+                        foreach(Operation ope in operations.Values)
+                        {
+                            if (finished)
+                            {
+                                break;
+                            }
+                            if (ope.Name.ToLower() == uh.ToLower())
+                            {
+                                Console.WriteLine(Json.GetValue(Response, "Action", "Target"));
+                                Console.WriteLine(enemy[i].Name);
+                                Console.WriteLine(enemy[e].Name);
+                                (enemy[e], string log) = Operation.Bexecution(uh, enemy[e], enemy[e], operations);
+                                Logs += log;
+                                finished = true;
+                            }
+                        }
+                    }
+                }
             }
+            return (player, enemy, Logs);
         }
         public static async Task<(List<Character>, List<Character>,string)> PlayerTurn(List<Character> player, List<Character> enemy, Dictionary<string, Operation> operations, string enemy_names,string GPT,string system,Menu menu)
         {
@@ -313,9 +361,8 @@ namespace Combat
                                 {
                                     if (ope.Name == uh)
                                     {
-                                        var c = await Operation.Bexecution(uh, player[0], enemy[i], operations);
-                                        enemy[i] = c.Item1;
-                                        Log = c.Item2;
+                                        (enemy[i],string log) = Operation.Bexecution(uh, player[0], enemy[i], operations);
+                                        Log = log;
                                     }
                                 }
                             }
@@ -331,9 +378,8 @@ namespace Combat
                                 {
                                     if (ope.Name == uh)
                                     {
-                                        var c = await Operation.Bexecution(uh, player[0], player[i], operations);
-                                        player[i] = c.Item1;
-                                        Log = c.Item2;
+                                        (player[i],string log) = Operation.Bexecution(uh, player[0], player[i], operations);
+                                        Log = log;
                                     }
                                 }
                             }
@@ -346,9 +392,8 @@ namespace Combat
                                 {
                                     if (ope.Name == uh)
                                     {
-                                        var c = await Operation.Bexecution(uh, player[0], player[i], operations);
-                                        player[0] = c.Item1;
-                                        Log = c.Item2;
+                                        (player[0],string log) = Operation.Bexecution(uh, player[0], player[i], operations);
+                                        Log = log;
                                     }
                                 }
                             }
@@ -362,6 +407,24 @@ namespace Combat
                     Console.WriteLine("Not a valid action");
                 }
             }
+        }
+        public static void DebugInfo(List<Character> player,List<Character> enemy,string log)
+        {
+            foreach(Character c in player) 
+            {
+                Console.WriteLine(c.Name);
+                Console.WriteLine(c.Health);
+                Console.WriteLine(c.Attack);
+                Console.WriteLine(c.Defence);
+            }
+            foreach (Character c in enemy)
+            {
+                Console.WriteLine(c.Name);
+                Console.WriteLine(c.Health);
+                Console.WriteLine(c.Attack);
+                Console.WriteLine(c.Defence);
+            }
+            Console.WriteLine(log);
         }
     }
 }

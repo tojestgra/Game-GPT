@@ -2,6 +2,7 @@
 using Types;
 using Combat;
 using Generic;
+using Microsoft.CodeAnalysis;
 
 namespace Gayme
 {
@@ -29,13 +30,57 @@ namespace Gayme
         {
             GPT = menu.GPT;
             Dictionary<string, Operation> operations = await Generation.OperationGeneration(2,"melee combat",GPT,system,menu);
-            foreach(var operation in operations) { Console.WriteLine(operation.Value.Name);Console.WriteLine(operation.Value.Ally); }
+            /*
+            string operatio = "Health{Char2.Health} - (Attack{Char1.Attack}*2 - Defence{Char2.Defence})";
+            Dictionary<string, Operation> operations = new Dictionary<string, Operation>();
+            Operation op = new Operation()
+            {
+                Name = "attack",
+                Description = "Uses attack stat to remove health",
+                Values = new List<Value> { },
+                Operatio = operatio,
+                Target = "Health",
+                TargetName = "Char2",
+                Log = "{Char1.Name} attacked {Char2.Name}!",
+                Ally = "False",
+                Self = "False"
+            };
+            operations.Add(op.Name, op);
+            operatio = "Health{Char1.Health} + (Defence{Char1.Defence} / 2)";
+            op = new Operation()
+            {
+                Name = "heal",
+                Description = "Heals the target by defence divided by 2",
+                Values = new List<Value> { },
+                Operatio = operatio,
+                Target = "Health",
+                TargetName = "Char2",
+                Log = "{Char1.Name} healed {Char2.Name} !",
+                Ally = "True",
+                Self = "False"
+            };
+            operations.Add(op.Name, op);
+            op = new Operation()
+            {
+                Name = "heal_self",
+                Description = "Heals the character by defence divided by 2",
+                Values = new List<Value> { },
+                Operatio = operatio,
+                Target = "Health",
+                TargetName = "Char1",
+                Log = "{Char1.Name} healed themselves !",
+                Ally = "True",
+                Self = "True"
+            };
+            operations.Add(op.Name, op);
+                        */
+            foreach (var operation in operations) { Console.WriteLine(operation.Value.Name);Console.WriteLine(operation.Value.Ally); }
             if (param == "combat")
             {
-                Character player = new Character { Name = "Moo", Health = 20};
-                Character ally = new Character { Name = "Mark", Health = 5 };
-                Character enemy = new Character { Name = "Glue", Attack = 4, Defence = 1 };
-                Character smone = new Character { Name = "Jack", Attack = 1, Defence = 3 };
+                Character player = new Character { Name = "Moo"};
+                Character ally = new Character { Name = "Mark"};
+                Character enemy = new Character { Name = "Glue"};
+                Character smone = new Character { Name = "Jack"};
                 List<Character> players = new List<Character>();
                 List<Character> enemies = new List<Character>();
                 players.Add(player);
