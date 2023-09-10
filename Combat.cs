@@ -26,14 +26,14 @@ namespace Combat
                 Log += $"--Turn: {turn}--\n";
                 (player,enemy,log) = await Load(PlayerTurn(player, enemy, operations, enemy_names,GPT,system,menu), "wThinking", "wThinking finished !");
                 Log += log+'\n';
-                DebugInfo(enemy, player, Log);
+                if(Debug.IsDebug)DebugInfo(enemy, player, Log);
                 (enemy,player,log) = await Load(AllyTurn(enemy, player, operations,GPT,system,menu), "Thinking", "Thinking finished !");
                 Log += log + '\n';
-                DebugInfo(enemy, player, Log);
+                if(Debug.IsDebug)DebugInfo(enemy, player, Log);
                 (player,enemy,log) = await Load(EnemyTurn(player, enemy, operations,GPT, system, menu), "BThinking", "BThinking finished !");
                 Log += log + '\n';
-                DebugInfo(enemy, player,Log);
-                //Console.WriteLine(await Narrator(turn,GPT,system,menu, Log));
+                if(Debug.IsDebug)DebugInfo(enemy, player,Log);
+                Console.WriteLine(await Narrator(turn,GPT,system,menu, Log));
                 turn++;
             }
         }
@@ -88,7 +88,6 @@ namespace Combat
             if (enemy.Count == 1) return (player, enemy, Logs);
             else
             {
-                Console.WriteLine("allied");
                 for (int e = 1; e < playerList.Count; e++)
                 {
                     bool finished = false;
@@ -114,17 +113,12 @@ namespace Combat
                     //Console.WriteLine(ProcessedPrompt);
                     if (operations[uh].Ally == "False")
                     {
-                        Console.WriteLine("ghou");
                         for (int i = 0; i < player.Count; i++)
                         {
-                            Console.WriteLine(player[i].Health);
-                            Console.WriteLine("bdfg");
                             if (player[i].Name == Json.GetValue(Response, "Action", "Target"))
                             {
-                                Console.WriteLine("ee");
                                 foreach (Operation ope in operations.Values)
                                 {
-                                    Console.WriteLine("das");
                                     if (finished)
                                     {
                                         break;
@@ -141,15 +135,12 @@ namespace Combat
                     }
                     for (int i = 1; i < playerList.Count; i++)
                     {
-                        Console.WriteLine(playerList[i].Health);
-                        if (operations[uh].Ally == "True" && Json.GetValue(Response, "Action", "Target") != "player")
+                        if (operations[uh].Ally == "True" && Json.GetValue(Response, "Action", "Target") != "player"|| Json.GetValue(Response, "Action", "Target") != "Player")
                         {
                             if (playerList[i].Name == Json.GetValue(Response, "Action", "Target"))
                             {
                                 foreach (Operation ope in operations.Values)
                                 {
-                                    Console.WriteLine(ope.Name);
-                                    Console.WriteLine(uh);
                                     if (finished)
                                     {
                                         break;
@@ -163,7 +154,7 @@ namespace Combat
                                 }
                             }
                         }
-                        else if (Json.GetValue(Response, "Action", "Target") == "player" && operations[uh].Self == "True")
+                        else if (Json.GetValue(Response, "Action", "Target").ToLower() == "player" && operations[uh].Self == "True")
                         {
                             foreach (Operation ope in operations.Values)
                             {
@@ -173,9 +164,6 @@ namespace Combat
                                 }
                                 if (ope.Name.ToLower() == uh.ToLower())
                                 {
-                                    Console.WriteLine(Json.GetValue(Response, "Action", "Target"));
-                                    Console.WriteLine(playerList[i].Name);
-                                    Console.WriteLine(playerList[e].Name);
                                     (playerList[e], string log) = Operation.Bexecution(uh, playerList[e], playerList[e], operations);
                                     Logs += log;
                                     finished = true;
@@ -184,7 +172,6 @@ namespace Combat
                         }
                     }
                 }
-                Console.WriteLine("ended");
                 return (player, playerList, Logs);
             }
         }
@@ -215,23 +202,18 @@ namespace Combat
                 }
                 Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400, GPT);
                 string uh = Json.GetValue(Response, "Action", "Name");
-                Console.WriteLine(ProcessedPrompt);
                 if (operations[uh].Ally == "False")
                 {
-                    Console.WriteLine("ghou");
                     for (int i = 0; i < player.Count; i++)
                     {
-                        Console.WriteLine("bdfg");
                         if (player[i].Name == Json.GetValue(Response, "Action", "Target"))
                         {
-                            Console.WriteLine("ee");
                             foreach (Operation ope in operations.Values)
                             {
                                 if (finished)
                                 {
                                     break;
                                 }
-                                Console.WriteLine("das");
                                 if (ope.Name == uh)
                                 {
                                     (player[i],string log) = Operation.Bexecution(uh, enemy[e], player[i], operations);
@@ -256,9 +238,6 @@ namespace Combat
                                 }
                                 if (ope.Name.ToLower() == uh.ToLower())
                                 {
-                                    Console.WriteLine(Json.GetValue(Response, "Action", "Target"));
-                                    Console.WriteLine(enemy[i].Name);
-                                    Console.WriteLine(enemy[e].Name);
                                     (enemy[i], string log) = Operation.Bexecution(uh, enemy[e], enemy[i], operations);
                                     Logs += log;
                                     finished = true;
@@ -266,7 +245,7 @@ namespace Combat
                             }
                         }
                     }
-                    else if(Json.GetValue(Response, "Action", "Target") == "player" && operations[uh].Self == "True")
+                    else if(Json.GetValue(Response, "Action", "Target").ToLower() == "player" && operations[uh].Self == "True")
                     {
                         foreach(Operation ope in operations.Values)
                         {
@@ -276,9 +255,6 @@ namespace Combat
                             }
                             if (ope.Name.ToLower() == uh.ToLower())
                             {
-                                Console.WriteLine(Json.GetValue(Response, "Action", "Target"));
-                                Console.WriteLine(enemy[i].Name);
-                                Console.WriteLine(enemy[e].Name);
                                 (enemy[e], string log) = Operation.Bexecution(uh, enemy[e], enemy[e], operations);
                                 Logs += log;
                                 finished = true;
@@ -330,7 +306,6 @@ namespace Combat
                 }
                 else if (PlayerAction.ToLower() == "act")
                 {
-                    Console.WriteLine("What action?");
                     string Prompt = Console.ReadLine();
                     string ProcessedPrompt = "Labels:\nAction(Name,Target)\n" +
                                       "Task: Your task is to determine which action the player wants to take depending on what they said. Use name for the name of the action which the player wants to take. Use target to type the name of whatever creature the player wants to inflict the action on. If the player says they want to inflict some action on themselves, return target as \"player\". In that case, if the action the player chooses is ambigous between multiple different actions, choose the one that has Used on self as True. If information from the player is missing replace it with what you think the player most likely would do. avaliable actions:\n";
@@ -400,7 +375,6 @@ namespace Combat
                         }
                     }
                     return (player, enemy,Log);
-                    break;
                 }
                 else
                 {

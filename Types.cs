@@ -105,8 +105,6 @@ namespace Types
             Console.WriteLine($"Parameters: {string.Join(", ", valueDictionary.Keys)}");
             */
             var parameter = valueDictionary.Keys.Select(k => System.Linq.Expressions.Expression.Parameter(typeof(float), k)).ToArray();
-            Console.WriteLine(parameter);
-            Console.WriteLine(operation);
             var expression = DynamicExpressionParser.ParseLambda(ParsingConfig.Default, parameter, null, operation);
             var compiled = expression.Compile();
             var result = compiled.DynamicInvoke(valueDictionary.Values.ToArray());
@@ -157,7 +155,6 @@ namespace Types
                   Console.WriteLine(operation.Values[i].Float);
                   Console.WriteLine(operation.Values[i].Name);
               }*/
-            Console.WriteLine(operation.Operatio);
             float result = CalculateExpression(operation);
             Character target;
             if (operation.TargetName == "Char1")

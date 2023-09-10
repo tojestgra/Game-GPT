@@ -5,8 +5,6 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using Types;
 using Generic;
-using System.Reflection;
-using System;
 
 namespace AI
 {
@@ -26,7 +24,10 @@ namespace AI
                 if (GPT == "gpt-4" || GPT == "gpt-3.5-turbo")
                 {
                     Process = await OpenAI_GPT.CallGPTGeneric(GPT, system, prompt, tokens);
-                    Console.WriteLine(Process);
+                    if(Debug.IsDebug)
+                    {
+                        Console.WriteLine(Process);
+                    }
                     Response = JArray.Parse(Process.ToString());
                     return Response;
                 }

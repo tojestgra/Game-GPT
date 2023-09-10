@@ -29,7 +29,7 @@ namespace Gayme
         public async Task Start()
         {
             GPT = menu.GPT;
-            Dictionary<string, Operation> operations = await Generation.OperationGeneration(2,"melee combat",GPT,system,menu);
+            Dictionary<string, Operation> operations = await Generation.OperationGeneration(5,"melee combat",GPT,system,menu);
             /*
             string operatio = "Health{Char2.Health} - (Attack{Char1.Attack}*2 - Defence{Char2.Defence})";
             Dictionary<string, Operation> operations = new Dictionary<string, Operation>();
@@ -74,7 +74,7 @@ namespace Gayme
             };
             operations.Add(op.Name, op);
                         */
-            foreach (var operation in operations) { Console.WriteLine(operation.Value.Name);Console.WriteLine(operation.Value.Ally); }
+            if(Debug.IsDebug)foreach (var operation in operations) { Console.WriteLine(operation.Value.Name);Console.WriteLine(operation.Value.Ally); }
             if (param == "combat")
             {
                 Character player = new Character { Name = "Moo"};
