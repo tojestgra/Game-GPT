@@ -7,7 +7,7 @@ namespace Generic
         public string GPT { get; set; }
         public Menu()
         {
-            GPT = "gpt-4";
+            GPT = "gpt-3.5-turbo";
         }
         public string Main_menu()
         {

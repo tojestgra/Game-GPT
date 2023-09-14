@@ -1,7 +1,9 @@
 using AI;
 using Gayme;
 using Generic;
+using Microsoft.CodeAnalysis;
 using Newtonsoft.Json.Linq;
+using System.Numerics;
 using System.Reflection;
 using System.Text.RegularExpressions;
 using Types;
@@ -47,7 +49,9 @@ namespace Combat
 
             void WriteMessageAndDots()
             {
-                Console.Write('\r' + message + new string('.', dotCount) + padString);
+                var output = '\r' + message + new string('.', dotCount);
+                var remaining = padLength - output.Length;
+                Console.Write(output + new string(' ', remaining));
             }
 
             while (!task.IsCompleted)
@@ -80,6 +84,27 @@ namespace Combat
             string narration = Json.GetValue(Response, "Narration", "narration");
             return narration;
         }
+        static string PromptConstructoir(Dictionary<string,Operation> operations,List<Character> player,List<Character> enemy,int e)
+        {
+            string ProcessedPrompt = $"Labels:\r\nReasoning(advantages,disadvantages,course_of_action)\r\nAction(Name,Target)\r\n\r\nTask: You are playing the role of {enemy[e].Name}. Your objective is to make prudent decisions based on the current game dynamics, prioritizing the team's interests and predicting possible moves from your allies and adversaries. Engage in a thorough analysis of potential actions by comparing their descriptions with your character's statistics to determine the best route. Use the label 'reasoning' along with its elements - 'advantages', 'disadvantages', and 'course of action' - to methodically evaluate all possibilities and ascertain the optimal course of action. This will involve weighing the merits of your character's stats against the disadvantages.\r\n\r\nThe 'name' label will denote your chosen action, whereas the 'target' label will indicate the entity at the receiving end of your action. Should you decide to direct the action towards yourself, utilize 'player' for the 'target'. Try to keep your reasoning short and to the point. You are only allowed to use one action, so choose carefully. Your available options are outlined below:\n";
+            foreach (Operation d in operations.Values)
+            {
+                ProcessedPrompt += $"Action name: {d.Name}. Action description: {d.Description}. Used on friendly: {d.Ally}. Used on self: {d.Self}.\n";
+            }
+            ProcessedPrompt += "Enemies:\n\n";
+            foreach (Character d in player)
+            {
+                ProcessedPrompt += $"Enemy: {d.Name}.\n";
+            }
+            ProcessedPrompt += "\nAllies:\n\n";
+            List<Character> allies = new List<Character>(enemy);
+            allies.Remove(enemy[e]);
+            foreach (Character c in allies)
+            {
+                ProcessedPrompt += $"Ally: {c.Name}.\n";
+            }
+            return ProcessedPrompt;
+        }
         public static async Task<(List<Character>, List<Character>, string)> AllyTurn(List<Character> player, List<Character> enemy, Dictionary<string, Operation> operations,string GPT, string system, Menu menu)
         {
             JArray Response;
@@ -91,26 +116,10 @@ namespace Combat
                 for (int e = 1; e < playerList.Count; e++)
                 {
                     bool finished = false;
-                    string ProcessedPrompt = $"Labels:\r\nReasoning(advantages,disadvantages,course_of_action)\r\nAction(Name,Target)\r\n\r\nTask: You are playing the role of {playerList[e].Name}. Your objective is to make prudent decisions based on the current game dynamics, prioritizing the team's interests and predicting possible moves from your allies and adversaries. Engage in a thorough analysis of potential actions by comparing their descriptions with your character's statistics to determine the best route. Use the label 'reasoning' along with its elements - 'advantages', 'disadvantages', and 'course of action' - to methodically evaluate all possibilities and ascertain the optimal course of action. This will involve weighing the merits of your character's stats against the disadvantages.\r\n\r\nThe 'name' label will denote your chosen action, whereas the 'target' label will indicate the entity at the receiving end of your action. Should you decide to direct the action towards yourself, utilize 'player' for the 'target'. Try to keep your reasoning short and to the point. You are only allowed to use one action, so choose carefully. Your available options are outlined below:\n";
-                    foreach (Operation d in operations.Values)
-                    {
-                        ProcessedPrompt += $"Action name: {d.Name}. Action description: {d.Description}. Used on friendly: {d.Ally}. Used on self: {d.Self}.\n";
-                    }
-                    ProcessedPrompt += "Enemies:\n\n";
-                    foreach (Character d in player)
-                    {
-                        ProcessedPrompt += $"Enemy: {d.Name}.\n";
-                    }
-                    ProcessedPrompt += "\nAllies:\n\n";
-                    List<Character> allies = new List<Character>(playerList);
-                    allies.Remove(playerList[e]);
-                    foreach (Character c in allies)
-                    {
-                        ProcessedPrompt += $"Ally: {c.Name}.\n";
-                    }
+                    string ProcessedPrompt = PromptConstructoir(operations,player,playerList,e);
                     Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400, GPT);
                     string uh = Json.GetValue(Response, "Action", "Name");
-                    //Console.WriteLine(ProcessedPrompt);
+                    Console.WriteLine(ProcessedPrompt);
                     if (operations[uh].Ally == "False")
                     {
                         for (int i = 0; i < player.Count; i++)
@@ -182,24 +191,7 @@ namespace Combat
             for (int e = 0; e < enemy.Count; e++)
             {
                 bool finished = false;
-                Console.WriteLine("enemied");
-                string ProcessedPrompt = $"Labels:\r\nReasoning(advantages,disadvantages,course_of_action)\r\nAction(Name,Target)\r\n\r\nTask: You are playing the role of {enemy[e].Name}. Your objective is to make prudent decisions based on the current game dynamics, prioritizing the team's interests and predicting possible moves from your allies and adversaries. Engage in a thorough analysis of potential actions by comparing their descriptions with your character's statistics to determine the best route. Use the label 'reasoning' along with its elements - 'advantages', 'disadvantages', and 'course of action' - to methodically evaluate all possibilities and ascertain the optimal course of action. This will involve weighing the merits of your character's stats against the disadvantages.\r\n\r\nThe 'name' label will denote your chosen action, whereas the 'target' label will indicate the entity at the receiving end of your action. Should you decide to direct the action towards yourself, utilize 'player' for the 'target'. Try to keep your reasoning short and to the point. You are only allowed to use one action, so choose carefully. Your available options are outlined below:\n";
-                foreach (Operation d in operations.Values)
-                {
-                    ProcessedPrompt += $"Action name: {d.Name}. Action description: {d.Description}. Used on friendly: {d.Ally}. Used on self: {d.Self}.\n";
-                }
-                ProcessedPrompt += "Enemies:\n\n";
-                foreach (Character d in player)
-                {
-                    ProcessedPrompt += $"Enemy: {d.Name}.\n";
-                }
-                ProcessedPrompt += "\nAllies:\n\n";
-                List<Character> allies = new List<Character>(enemy);
-                allies.Remove(enemy[e]);
-                foreach (Character c in allies)
-                {
-                    ProcessedPrompt += $"Ally: {c.Name}.\n";
-                }
+                string ProcessedPrompt = PromptConstructoir(operations, player, enemy, e);
                 Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400, GPT);
                 string uh = Json.GetValue(Response, "Action", "Name");
                 if (operations[uh].Ally == "False")

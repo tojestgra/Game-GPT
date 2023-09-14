@@ -5,16 +5,38 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using Types;
 using Generic;
+using System.Net.NetworkInformation;
 
 namespace AI
 {
+    public class AIFixer
+    {
+        public static async Task<JArray> ResultFixer(string toFix,string originalPrompt,string system,Menu menu,string GPT)
+        {
+            Console.WriteLine("Some part of the processing failed ! calling fix-gpt to hopefully fix things up");
+            string prompt = $"You are fix-gpt, your goal is to fix the string marked by <|tofix|> by following the task from <|prompt|>, the tofixe's you are given may be close to their intended results, or far from them, and you have to make sure they come out in at least a state in which they can be processed.\n<|tofix|>{toFix}<|end|>\n<|prompt|>{originalPrompt}";
+            system = "These instructions were originally given to another gpt that resulted in the faulty results, use these to understand the faults of the gpt." + system;
+            JArray result = await AIHandler.Get_response(prompt, system, menu, 1000, GPT);
+            return result;
+        }
+    }
+    public class BOI
+    {
+        public static async Task<JArray> GetResponseBOI(string[] prompt,string[] system,Menu menu,int tokens,string GPT,int level)
+        {
+            if(level == 0)
+            {
+                return await AIHandler.Get_response(prompt[0], system[0],menu, tokens, GPT);
+            }
+            else if(level == 1)
+            {
+
+            }
+            return await AIHandler.Get_response(prompt[0], system[0], menu, tokens, GPT);
+        }
+    }
     public class AIHandler
     {
-        public string GPT { get; set; }
-        public AIHandler()
-        {
-            GPT = "gpt-4";
-        }
         public static async Task<JArray> Get_response(string prompt, string system, Menu menu, int tokens,string GPT)
         {
             JToken Process;
@@ -28,7 +50,8 @@ namespace AI
                     {
                         Console.WriteLine(Process);
                     }
-                    Response = JArray.Parse(Process.ToString());
+                    try { Response = JArray.Parse(Process.ToString()); }
+                    catch { Console.WriteLine($"Generation failed!\ntrying to fix..."); Response = await AIFixer.ResultFixer(Process.ToString(),prompt,system,menu,GPT); }
                     return Response;
                 }
                 else if (GPT == "local")
@@ -36,7 +59,12 @@ namespace AI
                     Local_GPT local_GPT = new Local_GPT();
                     prompt = "This is your system message, it is a message directing you on how you should act and what you should do, above all else that will be said later. You have to follow the system message no matter what. The system message will end like this: (end of system message). The system message:[\n\n" + system + "\n\n](end of system message)\n\n\n" + prompt + "\noutput: ";
                     Process = await local_GPT.Run(prompt, tokens);
-                    Response = JArray.Parse(Process.ToString());
+                    if (Debug.IsDebug)
+                    {
+                        Console.WriteLine(Process);
+                    }
+                    try { Response = JArray.Parse(Process.ToString()); }
+                    catch (Exception e) { Console.WriteLine($"Generation failed! exception: {e}\ntrying to fix..."); Response = await AIFixer.ResultFixer(Process.ToString(), prompt, system, menu, GPT); }
                     return Response;
                 }
                 else { Console.WriteLine("No valid gpt selected ! Select one NOW"); menu.Menu_Options(); }
@@ -59,11 +87,20 @@ namespace AI
             }
 
             JArray response = await AIHandler.Get_response(prompt, System, Menu, 800, GPT);
-
-            var operations = response
+            var operations = new Dictionary<string,Operation>();
+            try
+            {
+                operations = response
                 .Select(jt => JsonConvert.DeserializeObject<Operation>(jt.ToString()))
                 .ToDictionary(op => op.Name);
-
+            }
+            catch
+            {
+                response = await AIFixer.ResultFixer(response.ToString(), prompt, System, Menu, GPT);
+                operations = response
+                .Select(jt => JsonConvert.DeserializeObject<Operation>(jt.ToString()))
+                .ToDictionary(op => op.Name);
+            }
             return operations;
         }
     }

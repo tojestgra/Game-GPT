@@ -97,7 +97,7 @@ namespace Types
             string operation = operations.Operatio;
             foreach (var value in values)
             {
-                valueDictionary.Add(value.Name, value.Float);
+                if (!valueDictionary.Values.Contains(value))valueDictionary.Add(value.Name, value.Float);
             }
             /*
             Console.WriteLine($"\nOperation: {operation}");
