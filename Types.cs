@@ -30,6 +30,34 @@ namespace Types
 
             return values;
         }
+        public static List<string> GetAllValues(JArray jsonArray,string objectName)
+        {
+            List<JToken> matchingObjects = jsonArray.Where(jt => jt["Object"].ToString() == objectName).ToList();
+            List<string> values = new List<string>();
+
+            foreach (var obj in matchingObjects)
+            {
+                values.Add(obj.ToString());
+            }
+
+            return values;
+        }
+        public static Dictionary<string,string> GetAllValuesNames(JArray jsonArray, string objectName)
+        {
+            List<JToken> matchingObjects = jsonArray.Where(jt => jt["Object"].ToString() == objectName).ToList();
+            Dictionary<string,string> values = new Dictionary<string, string>();
+
+            foreach (JToken jToken in matchingObjects)
+            {
+                JProperty prop = jToken as JProperty;
+                if (prop != null)
+                {
+                    values.Add(prop.Name, prop.Value.ToString());
+                }
+            }
+
+            return values;
+        }
         public static Dictionary<string, Dictionary<string, List<string>>> GetValuesGroup(JArray jsonArray, List<Dictionary<string, List<string>>> objects)
         {
             Dictionary<string, Dictionary<string, List<string>>> matching = new Dictionary<string, Dictionary<string, List<string>>>();

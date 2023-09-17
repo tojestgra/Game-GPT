@@ -6,6 +6,8 @@ using Newtonsoft.Json.Linq;
 using Types;
 using Generic;
 using System.Net.NetworkInformation;
+using Microsoft.CodeAnalysis;
+using System.Reflection.Emit;
 
 namespace AI
 {
@@ -16,28 +18,44 @@ namespace AI
             Console.WriteLine("Some part of the processing failed ! calling fix-gpt to hopefully fix things up");
             string prompt = $"You are fix-gpt, your goal is to fix the string marked by <|tofix|> by following the task from <|prompt|>, the tofixe's you are given may be close to their intended results, or far from them, and you have to make sure they come out in at least a state in which they can be processed.\n<|tofix|>{toFix}<|end|>\n<|prompt|>{originalPrompt}";
             system = "These instructions were originally given to another gpt that resulted in the faulty results, use these to understand the faults of the gpt." + system;
-            JArray result = await AIHandler.Get_response(prompt, system, menu, 1000, GPT);
+            JArray result = await AIHandler.Get_response(prompt, system, menu, 1000, GPT, true);
             return result;
         }
     }
     public class BOI
     {
-        public static async Task<JArray> GetResponseBOI(string[] prompt,string[] system,Menu menu,int tokens,string GPT,int level)
+        public static async Task<JArray> GetResponseBOI(string[] prompt, string[] system, Menu menu, int tokens, string GPT, int[] level)
         {
-            if(level == 0)
+            if (level[0] == 0)
             {
-                return await AIHandler.Get_response(prompt[0], system[0],menu, tokens, GPT);
+                return await AIHandler.Get_response(prompt[0], system[0],menu, tokens, GPT, true);
             }
-            else if(level == 1)
+            else if (level[0] == 1)
             {
-
+                if (level[1] == 0)
+                {
+                    Console.WriteLine("dd");
+                    string prompt2 = await AIHandler.Get_response(prompt[1], system[1], menu, tokens, GPT,false); //prompt[1] is a human readable prompt with no bullshit
+                    prompt2 = prompt[2] + prompt2;
+                    return await AIHandler.Get_response(prompt2, system[2], menu, tokens, GPT, true); //prompt2 should return the format we want 
+                }
+                else if (level[1] == 1)
+                {
+                    string prompt2 = $"\n\n\n<|prompt|>\n"+prompt[0]+"\n<|end|>";
+                    string response = await AIHandler.Get_response(prompt2, "You are transform gpt. Your goal is to process the prompt marked by <|prompt|> and simplify it. You should remove the Labels and unnecesarry json from the prompt. Do not complete the task from the prompt yourself,only extract it. Although do make sure to not omit any mission critical information, and make sure to not remove too much info.\n\nExample: You are given a prompt saying you should give it a list of game titles you made, then put those into a json format. Along with this is a list of suggestions on what game titles you should make. You should return: A description of the task from the prompt, saying you should return the titles in a raw format, along with the requirements for game titles", menu, tokens, GPT, false);
+                    Console.WriteLine("dewfafh\n\nrtr");
+                    string response2 = await AIHandler.Get_response(response,"",menu,tokens, GPT, false);
+                    string label = await AIHandler.Get_response($"\n\n<|prompt|>{prompt[0]}", "Your goal is to extract the labels from the prompt marked by <|prompt|> and return them in the raw json format, like this: Labels:[the labels and objects]", menu, tokens, GPT, false);
+                    string prompt3 = label + "\nTask: Your task is to transform the response marked by <|response|> to conform to the rules of json.\n<|response|>" + response2;
+                    return await AIHandler.Get_response(prompt3, system[0], menu, tokens, GPT, true);
+                }
             }
-            return await AIHandler.Get_response(prompt[0], system[0], menu, tokens, GPT);
+            return await AIHandler.Get_response(prompt[0], system[0], menu, tokens, GPT,true);
         }
     }
     public class AIHandler
     {
-        public static async Task<JArray> Get_response(string prompt, string system, Menu menu, int tokens,string GPT)
+        public static async Task<dynamic> Get_response(string prompt, string system, Menu menu, int tokens,string GPT,bool check)
         {
             JToken Process;
             JArray Response;
@@ -50,9 +68,17 @@ namespace AI
                     {
                         Console.WriteLine(Process);
                     }
-                    try { Response = JArray.Parse(Process.ToString()); }
-                    catch { Console.WriteLine($"Generation failed!\ntrying to fix..."); Response = await AIFixer.ResultFixer(Process.ToString(),prompt,system,menu,GPT); }
-                    return Response;
+                    if (check == true)
+                    {
+                        Console.WriteLine("aa");
+                        try { Response = JArray.Parse(Process.ToString()); }
+                        catch { Console.WriteLine($"Generation failed!\ntrying to fix..."); Response = await AIFixer.ResultFixer(Process.ToString(), prompt, system, menu, GPT); }
+                        return Response;
+                    }
+                    else
+                    {
+                        return Process;
+                    }
                 }
                 else if (GPT == "local")
                 {
@@ -63,9 +89,16 @@ namespace AI
                     {
                         Console.WriteLine(Process);
                     }
-                    try { Response = JArray.Parse(Process.ToString()); }
-                    catch (Exception e) { Console.WriteLine($"Generation failed! exception: {e}\ntrying to fix..."); Response = await AIFixer.ResultFixer(Process.ToString(), prompt, system, menu, GPT); }
-                    return Response;
+                    if (check)
+                    {
+                        try { Response = JArray.Parse(Process.ToString()); }
+                        catch { Console.WriteLine($"Generation failed!\ntrying to fix..."); Response = await AIFixer.ResultFixer(Process.ToString(), prompt, system, menu, GPT); }
+                        return Response;
+                    }
+                    else
+                    {
+                        return Process;
+                    }
                 }
                 else { Console.WriteLine("No valid gpt selected ! Select one NOW"); menu.Menu_Options(); }
             }
@@ -86,20 +119,52 @@ namespace AI
                 prompt += $"{properties[i].Name}\n";
             }
 
-            JArray response = await AIHandler.Get_response(prompt, System, Menu, 800, GPT);
             var operations = new Dictionary<string,Operation>();
+            string[] boiprompt =
+            {
+                prompt,
+            };
+            string[] boisystem =
+            {
+                System,
+            };
+            //JArray response = await AIHandler.Get_response(prompt, System, Menu, 800, GPT);
+            JArray response = await BOI.GetResponseBOI(boiprompt, boisystem, Menu, 1000, GPT,new int[] {1,1});
             try
             {
                 operations = response
-                .Select(jt => JsonConvert.DeserializeObject<Operation>(jt.ToString()))
-                .ToDictionary(op => op.Name);
+                .Select(jt => JsonConvert.DeserializeObject<Operation>(jt.ToString())).ToDictionary(op => op.Name);
             }
             catch
             {
                 response = await AIFixer.ResultFixer(response.ToString(), prompt, System, Menu, GPT);
                 operations = response
-                .Select(jt => JsonConvert.DeserializeObject<Operation>(jt.ToString()))
-                .ToDictionary(op => op.Name);
+                .Select(jt => JsonConvert.DeserializeObject<Operation>(jt.ToString())).ToDictionary(op => op.Name);
+            }
+            //validating operations
+            foreach (JToken jtoken in response)
+            {
+                string operationKey = jtoken["Name"].Value<string>();
+                Console.WriteLine(operationKey);
+                Operation operation;
+                try
+                {
+                    operation = JsonConvert.DeserializeObject<Operation>(jtoken.ToString());
+                    Operation.CalculateExpression(operation);
+                }
+                catch
+                {
+                    Console.WriteLine(jtoken.ToString());
+                    string badOperation = $"The bad operation: {Json.GetAllValuesNames(jtoken as JArray, "Operation")}";
+                    string fixPrompt = $"Labels: Operation(Name,Description,Operatio,Target,TargetName,Log,Ally,Self)\nTask:You will be given an operation that for some reason is faulty. Most likely the culprit is the Operatio being written incorectly. Your task is to fix the operatio according to this template:\n\nName: (string) This is the name of the operation. Any unique identifier you prefer. Example: 'attack or heal_self'.\r\n* Description: (string) This describes what the operation does in the game. Make sure its description matches its name. Example: 'Uses attack stat to remove health'.\r\n* Operatio (or the operation, but you have to refer to it as the Operatio): (delegate/lambda) It's a function that takes the character and a list of values to describe how the operation is performed. The entry should code in textual format. Example: 'Health{{Char1.Health}} - (Attack{{Char1.Attack}} - Defence{{Char2.Defence}})'.\r\n* Target: (string) This specifies what the operation targets in the game. It could target 'Health', 'Mana', 'Experience' etc. Example: 'Health'.\r\n* TargetName: (string) This is the name of the target character which the operation is applied on. Either Char1 or Char2. Char1 is the executor of the task, while Char2 is the recipient\r\n* Log: (string) This log is for logging the result of the operation in-game. It usually uses the Name properties of characters involved. Example: '{{Char1.Name}} attacked {{Char2.Name}}!'\r\n* Ally: (string) This determines if the operation can be used on allies. Acceptable entries are 'True' or 'False'. Example: 'False'.\r\n* Self: (string) This determines if the operation only works on the caster. Acceptable entries are 'True' or 'False'. Example: 'False'\nThe broken operation:{badOperation}";
+                    JArray fixedResponse = await AIHandler.Get_response(fixPrompt, System, Menu, 800, GPT, true);
+                    Operation fixedOperation = JsonConvert.DeserializeObject<Operation>(fixedResponse[0].ToString());
+                    //Recalculate here if necessary
+                    //Operation.CalculateExpression(fixedOperation);
+
+                    // Replace the faulty operation with the new one in the operations dictionary
+                    operations[operationKey] = fixedOperation;
+                }
             }
             return operations;
         }

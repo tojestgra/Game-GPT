@@ -80,7 +80,7 @@ namespace Combat
             JArray Response;
             string ProcessedPrompt = $"Labels:\nNarration(narration)\nTask: You are the narrator, your goal is to summarize an action / actions performed by characters in a situation. Use narration to give a short and flavorful descriptions of actions characters in the log string have taken. Narrate for the current turn, but also base a bit of your narration on what has previously happened.\nThe current turn is: {turn}. Log:\n{Log}";
             Console.WriteLine(ProcessedPrompt);
-            Response = await AIHandler.Get_response(ProcessedPrompt, System, Menu, 200,GPT);
+            Response = await AIHandler.Get_response(ProcessedPrompt, System, Menu, 200,GPT, true);
             string narration = Json.GetValue(Response, "Narration", "narration");
             return narration;
         }
@@ -117,7 +117,7 @@ namespace Combat
                 {
                     bool finished = false;
                     string ProcessedPrompt = PromptConstructoir(operations,player,playerList,e);
-                    Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400, GPT);
+                    Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400, GPT, true);
                     string uh = Json.GetValue(Response, "Action", "Name");
                     Console.WriteLine(ProcessedPrompt);
                     if (operations[uh].Ally == "False")
@@ -192,7 +192,7 @@ namespace Combat
             {
                 bool finished = false;
                 string ProcessedPrompt = PromptConstructoir(operations, player, enemy, e);
-                Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400, GPT);
+                Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400, GPT, true);
                 string uh = Json.GetValue(Response, "Action", "Name");
                 if (operations[uh].Ally == "False")
                 {
@@ -316,7 +316,7 @@ namespace Combat
                         ProcessedPrompt += $"Ally: {d.Name}.\n";
                     }
                     ProcessedPrompt += "\n\nPlayers action: " + Prompt;
-                    JArray Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400,GPT);
+                    JArray Response = await AIHandler.Get_response(ProcessedPrompt, system, menu, 400,GPT, true);
                     string uh = Json.GetValue(Response, "Action", "Name");
                     for (int i = 0; i < enemy.Count; i++)
                     {

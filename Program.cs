@@ -25,14 +25,6 @@ namespace Gayme
         string Log;
         public async Task Start()
         {
-            string[] BOIprompts = 
-            {
-
-            };
-            string[] BOIsystem = 
-            {
-
-            };
             GPT = menu.GPT;
             Dictionary<string, Operation> operations = await Generation.OperationGeneration(3,"melee combat",GPT,system,menu);
             /*
