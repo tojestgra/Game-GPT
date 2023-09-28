@@ -25,6 +25,7 @@ namespace Gayme
         string Log;
         public async Task Start()
         {
+            Console.WriteLine("Trans rights :3");
             GPT = menu.GPT;
             Dictionary<string, Operation> operations = await Generation.OperationGeneration(3,"melee combat",GPT,system,menu);
             /*
